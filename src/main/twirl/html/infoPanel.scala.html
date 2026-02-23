@@ -1,0 +1,627 @@
+@* src/main/twirl/html/infoPanel.scala.html *@ @(name: String, sub: String)
+
+<div
+  class="info-box"
+  x-data='questionFeedback(
+    [
+      "F0FEHW", "0006211846", "0006214503", "4700737141", "4700870696",
+      "4701039874", "H019SY", "4700513071", "F07WTJ", "G0E5QG"
+    ],
+    [
+      "202204047226", "202308069075", "CTR020894395-1", "CTR020399433-2",
+      "7003285074", "202301028936", "202311077829", "CTR020598137-7",
+      "CTR020541990-4", "CTR020855257-2"
+    ],
+    [
+      "Cloud Network Technology Singapore — 6366155 — 659259449",
+      "The Hongkong and Shanghai Banking — 6066411 — 725377795",
+      "IBM Japan Ltd — 6387977 — 690593819",
+      "IBM MEDICAL DENTAL PLAN TRUST — 6490402 — -1",
+      "HDFC BANK INCOME TAX ACCOUNT — 6096691 — -1",
+      "Kyndryl Inc — 6487908 — 118093317",
+      "OGILVY and MATHER — 5773116 — 008920233",
+      "HDFC BANK INCOME TAX ACCOUNT — 6096691 — -1",
+      "IBM Japan Ltd — 6387977 — 690593819",
+      "IBM Japan Credit LLC — 5822633 — 718368439",
+      "TECH DATA CORP — 5782143 — 029387391",
+      "OGILVY and MATHER — 5773116 — 008920233",
+      "RED HAT INC — 6377556 — 878051556",
+      "IBM Japan Credit LLC — 5822633 — 718368439"
+    ],
+    &apos;@name&apos;,
+    &apos;@sub&apos;
+  )'
+>
+  <section class="user-info">
+    <h2>User Information</h2>
+    <p><strong>Name:</strong> @name</p>
+    <p><strong>ID:</strong> @sub</p>
+  </section>
+
+  <section class="sample-questions">
+    <h2>Questions</h2>
+
+    <cds-contained-list kind="on-page">
+      <div
+        slot="label"
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        "
+      >
+        <span>EPM Questions</span>
+        <cds-tag size="sm" x-text="questions.length"></cds-tag>
+      </div>
+
+      <template x-for="(question, index) in questions" :key="question.id">
+        <cds-contained-list-item>
+          <span x-text="question.text"></span>
+          <div
+            slot="action"
+            style="display: flex; gap: 0.5rem; align-items: center"
+          >
+            <cds-button
+              kind="ghost"
+              size="sm"
+              x-on:click="copyQuestion(question.text)"
+              title="Copy Question"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 32 32"
+                fill="currentColor"
+              >
+                <path
+                  d="M28 10H18V4a2.002 2.002 0 00-2-2H4a2.002 2.002 0 00-2 2v16a2.002 2.002 0 002 2h10v6a2.002 2.002 0 002 2h12a2.002 2.002 0 002-2V12a2.002 2.002 0 00-2-2zm-4 18H16V12h8zm4-4h-2V12h2zm-2-8V4h10v16H4V4h10z"
+                />
+              </svg>
+            </cds-button>
+            <cds-button
+              kind="ghost"
+              size="sm"
+              x-on:click="markQuestion(question.id, 'pass')"
+              :class="{ 'cds-button--success-active': question.status === 'pass' }"
+              title="Mark as Pass"
+            >
+              ✓ Pass
+            </cds-button>
+            <cds-button
+              kind="ghost"
+              size="sm"
+              x-on:click="markQuestion(question.id, 'fail')"
+              :class="{ 'cds-button--danger-active': question.status === 'fail' }"
+              title="Mark as Fail"
+            >
+              ✗ Fail
+            </cds-button>
+            <cds-button
+              kind="ghost"
+              size="sm"
+              x-show="question.status"
+              x-on:click="clearQuestion(question.id)"
+              title="Clear Status"
+            >
+              ↺
+            </cds-button>
+          </div>
+        </cds-contained-list-item>
+      </template>
+    </cds-contained-list>
+
+    <div
+      style="
+        margin-top: 1.5rem;
+        padding: 1rem;
+        background: white;
+        border-radius: 4px;
+      "
+    >
+      <div style="display: flex; gap: 2rem; margin-bottom: 1rem">
+        <div>
+          <strong>Total:</strong> <span x-text="questions.length"></span>
+        </div>
+        <div style="color: var(--cds-support-02, #24a148)">
+          <strong>Passed:</strong> <span x-text="passedCount"></span>
+        </div>
+        <div style="color: var(--cds-support-01, #da1e28)">
+          <strong>Failed:</strong> <span x-text="failedCount"></span>
+        </div>
+        <div style="color: var(--cds-text-03, #8d8d8d)">
+          <strong>Untested:</strong> <span x-text="untestedCount"></span>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 1rem">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500">
+          Notes
+        </label>
+        <cds-text-area
+          x-model="notes"
+          placeholder="Add any notes about your testing..."
+          rows="3"
+        ></cds-text-area>
+      </div>
+
+      <div style="display: flex; gap: 1rem">
+        <cds-button
+          kind="primary"
+          x-on:click="submitResults()"
+          :disabled="!hasResults"
+        >
+          Submit Results
+        </cds-button>
+        <cds-button kind="secondary" x-on:click="resetAll()">
+          Reset All
+        </cds-button>
+      </div>
+
+      <div
+        x-show="submitStatus"
+        x-transition
+        class="submit-message"
+        :class="{
+          'submit-message--success': submitStatus === 'success',
+          'submit-message--error': submitStatus === 'error'
+        }"
+      >
+        <span x-text="submitMessage"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="test-data">
+    <h2>Test Data</h2>
+    <p>Use these sample POs and invoices to test the system:</p>
+
+    <div style="margin-bottom: 1.5rem">
+      <cds-contained-list kind="on-page">
+        <div
+          slot="label"
+          style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          "
+        >
+          <span>Purchase Orders (POs)</span>
+          <cds-tag size="sm" x-text="poNumbers.length"></cds-tag>
+        </div>
+        <template x-for="(po, index) in poNumbers" :key="index">
+          <cds-contained-list-item>
+            <span x-text="po"></span>
+            <div slot="action">
+              <cds-button
+                kind="ghost"
+                size="sm"
+                x-on:click="copyToClipboard(po)"
+                title="Copy PO Number"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 32 32"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M28 10H18V4a2.002 2.002 0 00-2-2H4a2.002 2.002 0 00-2 2v16a2.002 2.002 0 002 2h10v6a2.002 2.002 0 002 2h12a2.002 2.002 0 002-2V12a2.002 2.002 0 00-2-2zm-4 18H16V12h8zm4-4h-2V12h2zm-2-8V4h10v16H4V4h10z"
+                  />
+                </svg>
+              </cds-button>
+            </div>
+          </cds-contained-list-item>
+        </template>
+      </cds-contained-list>
+    </div>
+
+    <div style="margin-bottom: 1.5rem">
+      <cds-contained-list kind="on-page">
+        <div
+          slot="label"
+          style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          "
+        >
+          <span>Invoices</span>
+          <cds-tag size="sm" x-text="invoiceNumbers.length"></cds-tag>
+        </div>
+        <template x-for="(invoice, index) in invoiceNumbers" :key="index">
+          <cds-contained-list-item>
+            <span x-text="invoice"></span>
+            <div slot="action">
+              <cds-button
+                kind="ghost"
+                size="sm"
+                x-on:click="copyToClipboard(invoice)"
+                title="Copy Invoice Number"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 32 32"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M28 10H18V4a2.002 2.002 0 00-2-2H4a2.002 2.002 0 00-2 2v16a2.002 2.002 0 002 2h10v6a2.002 2.002 0 002 2h12a2.002 2.002 0 002-2V12a2.002 2.002 0 00-2-2zm-4 18H16V12h8zm4-4h-2V12h2zm-2-8V4h10v16H4V4h10z"
+                  />
+                </svg>
+              </cds-button>
+            </div>
+          </cds-contained-list-item>
+        </template>
+      </cds-contained-list>
+    </div>
+
+    <div>
+      <cds-contained-list kind="on-page">
+        <div
+          slot="label"
+          style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          "
+        >
+          <span>Suppliers (Supplier Name, Supplier Number, DUNS Entity) </span>
+          <cds-tag size="sm" x-text="supplierDetails.length"></cds-tag>
+        </div>
+        <template x-for="(supplier, index) in supplierDetails" :key="index">
+          <cds-contained-list-item>
+            <span x-text="supplier.fullString"></span>
+            <div slot="action">
+              <cds-button
+                kind="ghost"
+                size="sm"
+                x-on:click="copyToClipboard(supplier.fullString)"
+                title="Copy Supplier Details"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 32 32"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M28 10H18V4a2.002 2.002 0 00-2-2H4a2.002 2.002 0 00-2 2v16a2.002 2.002 0 002 2h10v6a2.002 2.002 0 002 2h12a2.002 2.002 0 002-2V12a2.002 2.002 0 00-2-2zm-4 18H16V12h8zm4-4h-2V12h2zm-2-8V4h10v16H4V4h10z"
+                  />
+                </svg>
+              </cds-button>
+            </div>
+          </cds-contained-list-item>
+        </template>
+      </cds-contained-list>
+    </div>
+  </section>
+</div>
+
+<script
+  type="module"
+  src="https://1.www.s81c.com/common/carbon/web-components/version/v2.46.0/tag.min.js"
+></script>
+<script
+  type="module"
+  src="https://1.www.s81c.com/common/carbon/web-components/version/v2.46.0/button.min.js"
+></script>
+<script
+  type="module"
+  src="https://1.www.s81c.com/common/carbon/web-components/version/v2.46.0/textarea.min.js"
+></script>
+<script
+  defer
+  src="https://cdn.jsdelivr.net/npm/alpinejs@@3.x.x/dist/cdn.min.js"
+></script>
+
+<script>
+  function questionFeedback(
+    initialPoNumbers,
+    initialInvoiceNumbers,
+    initialSupplierDetails,
+    userName,
+    userId,
+  ) {
+    return {
+      poNumbers: initialPoNumbers,
+      invoiceNumbers: initialInvoiceNumbers,
+      supplierDetails: initialSupplierDetails.map((s) => {
+        const parts = s.split("—").map((p) => p.trim());
+        return {
+          fullString: s,
+          name: parts[0] || "",
+          number: parts[1] || "",
+          duns: parts[2] || "",
+        };
+      }),
+      questionTemplates: {
+        aggregate: [
+          "How much spend for each category?",
+          "Can you display number of POs that have open invoices tied to it?",
+          "Get list of suppliers which has PO which is fully invoiced for last 2 months",
+          "Get non po invoices for year 2025",
+        ],
+        poRelated: [
+          "Who approved this PO: {poNumber}?",
+          "What is the cost center tied to this PO: {poNumber}?",
+          "Provide the PO summary report for this PO: {poNumber}",
+          "Is this PO: {poNumber} fully paid?",
+          "Who has requested this PO: {poNumber}?",
+          "What type of PO is this: {poNumber}?",
+          "What is the invoice number for this PO: {poNumber}?",
+          "What is the issue date for this PO: {poNumber}?",
+          "How many line items are there in this PO: {poNumber}?",
+          "What is the status of this PO: {poNumber}?",
+          "What is the requisition number of this PO: {poNumber}?",
+        ],
+        invoiceRelated: [
+          "What is the status of this invoice: {invoiceNumber}?",
+          "How much is this invoice: {invoiceNumber}?",
+          "What are the spend categories for this invoice: {invoiceNumber}?",
+          "What is the PO attached to this invoice: {invoiceNumber}?",
+          "Who is requestor of the PO attached to this invoice: {invoiceNumber}?",
+        ],
+        supplierRelated: [
+          "What is our annual spend with this supplier: {supplierName}?",
+          "How many POs we have placed with supplier: {supplierName}?",
+          "Do we currently have an open purchase order in place with supplier: {supplierName}?",
+          "Get invoices for the month of december for supplier: {supplierName}",
+          "How much is spend by supplier {supplierName} in last 15 days?",
+        ],
+      },
+      questions: [],
+      notes: "",
+      submitStatus: null,
+      submitMessage: "",
+      copiedMessage: "",
+
+      init() {
+        this.generateQuestions();
+      },
+
+      generateQuestions() {
+        let idCounter = 0;
+        let generated = [];
+
+        this.questionTemplates.aggregate.forEach((text) => {
+          generated.push({
+            id: idCounter++,
+            text: text,
+            status: null,
+            category: "aggregate",
+          });
+        });
+
+        this.poNumbers.forEach((poNumber) => {
+          this.questionTemplates.poRelated.forEach((template) => {
+            generated.push({
+              id: idCounter++,
+              text: template.replace("{poNumber}", poNumber),
+              status: null,
+              category: "poRelated",
+              relatedId: poNumber,
+            });
+          });
+        });
+
+        this.invoiceNumbers.forEach((invoiceNumber) => {
+          this.questionTemplates.invoiceRelated.forEach((template) => {
+            generated.push({
+              id: idCounter++,
+              text: template.replace("{invoiceNumber}", invoiceNumber),
+              status: null,
+              category: "invoiceRelated",
+              relatedId: invoiceNumber,
+            });
+          });
+        });
+
+        this.supplierDetails.forEach((supplier) => {
+          this.questionTemplates.supplierRelated.forEach((template) => {
+            generated.push({
+              id: idCounter++,
+              text: template.replace("{supplierName}", supplier.name),
+              status: null,
+              category: "supplierRelated",
+              relatedId: supplier.name, // Use the parsed name for relatedId
+            });
+          });
+        });
+
+        this.questions = generated;
+      },
+
+      get passedCount() {
+        return this.questions.filter((q) => q.status === "pass").length;
+      },
+
+      get failedCount() {
+        return this.questions.filter((q) => q.status === "fail").length;
+      },
+
+      get untestedCount() {
+        return this.questions.filter((q) => !q.status).length;
+      },
+
+      get hasResults() {
+        return this.questions.some((q) => q.status !== null);
+      },
+
+      markQuestion(id, status) {
+        const index = this.questions.findIndex((q) => q.id === id);
+        if (index !== -1) {
+          this.questions[index].status = status;
+        }
+      },
+
+      clearQuestion(id) {
+        const index = this.questions.findIndex((q) => q.id === id);
+        if (index !== -1) {
+          this.questions[index].status = null;
+        }
+      },
+
+      async copyToClipboard(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+          this.copiedMessage = "Copied!";
+          setTimeout(() => (this.copiedMessage = ""), 2000);
+        } catch (err) {
+          console.error("Failed to copy: ", err);
+          this.copiedMessage = "Failed to copy.";
+          setTimeout(() => (this.copiedMessage = ""), 2000);
+        }
+      },
+
+      async copyQuestion(questionText) {
+        await this.copyToClipboard(questionText);
+      },
+
+      async submitResults() {
+        const results = {
+          timestamp: new Date().toISOString(),
+          userName: userName,
+          userId: userId,
+          questions: this.questions.map((q) => ({
+            id: q.id,
+            text: q.text,
+            status: q.status,
+            category: q.category,
+            relatedId: q.relatedId || null,
+          })),
+          notes: this.notes,
+          summary: {
+            passed: this.passedCount,
+            failed: this.failedCount,
+            untested: this.untestedCount,
+            total: this.questions.length,
+          },
+        };
+
+        console.log("Submitting results:", results);
+
+        try {
+          const response = await fetch("/api/feedback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(results),
+          });
+
+          if (response.ok) {
+            const message = await response.text();
+            this.submitStatus = "success";
+            this.submitMessage =
+              message ||
+              `Results submitted! ${this.passedCount} passed, ${this.failedCount} failed`;
+          } else {
+            const errorText = await response.text();
+            this.submitStatus = "error";
+            this.submitMessage = `Submission failed: ${errorText || response.statusText}`;
+            console.error("API submission error:", response.status, errorText);
+          }
+        } catch (error) {
+          this.submitStatus = "error";
+          this.submitMessage = `Network error: ${error.message}`;
+          console.error("Network error during submission:", error);
+        } finally {
+          setTimeout(() => {
+            this.submitStatus = null;
+            this.submitMessage = "";
+          }, 5000);
+        }
+      },
+
+      resetAll() {
+        this.questions.forEach((q) => (q.status = null));
+        this.notes = "";
+        this.submitStatus = null;
+        this.submitMessage = "";
+      },
+    };
+  }
+</script>
+
+<style>
+  .info-box {
+    background: var(--cds-background, #f4f4f4);
+    padding: var(--cds-spacing-07, 2rem);
+    border-radius: var(--cds-border-radius-1, 4px);
+    height: 100vh;
+    overflow-y: auto;
+    font-family: var(--cds-font-family, "IBM Plex Sans", sans-serif);
+    color: var(--cds-text-01, #161616);
+  }
+
+  .info-box section {
+    margin-bottom: var(--cds-spacing-07, 2rem);
+  }
+
+  .info-box h1 {
+    font-size: var(--cds-heading-05-font-size, 2rem);
+    margin-bottom: var(--cds-spacing-06, 1.5rem);
+    color: var(--cds-text-01, #161616);
+  }
+
+  .info-box h2 {
+    font-size: var(--cds-heading-03-font-size, 1.25rem);
+    margin-bottom: var(--cds-spacing-05, 1rem);
+    color: var(--cds-text-02, #525252);
+  }
+
+  .user-info {
+    background: var(--cds-ui-03, #e0e0e0);
+    padding: var(--cds-spacing-05, 1rem);
+    border-radius: var(--cds-border-radius-1, 4px);
+  }
+
+  cds-button.cds-button--success-active {
+    background-color: var(--cds-support-02, #24a148) !important;
+    color: var(--cds-text-04, white) !important;
+  }
+
+  cds-button.cds-button--danger-active {
+    background-color: var(--cds-support-01, #da1e28) !important;
+    color: var(--cds-text-04, white) !important;
+  }
+
+  .submit-message {
+    margin-top: var(--cds-spacing-05, 1rem);
+    padding: var(--cds-spacing-04, 0.75rem);
+    border-radius: var(--cds-border-radius-1, 4px);
+    font-size: var(--cds-body-compact-01-font-size, 0.875rem);
+  }
+
+  .submit-message--success {
+    background: var(--cds-background-success, #defbe6);
+    color: var(--cds-text-success, #0e6027);
+  }
+
+  .submit-message--error {
+    background: var(--cds-background-danger, #fff1f1);
+    color: var(--cds-text-danger, #750e13);
+  }
+
+  .copy-message {
+    position: fixed;
+    bottom: var(--cds-spacing-05, 1rem);
+    right: var(--cds-spacing-05, 1rem);
+    background-color: var(--cds-background-inverse, #161616);
+    color: var(--cds-text-04, white);
+    padding: var(--cds-spacing-05, 1rem);
+    border-radius: var(--cds-border-radius-1, 4px);
+    z-index: 1000;
+    box-shadow: var(--cds-shadow-1, 0 2px 4px rgba(0, 0, 0, 0.2));
+  }
+</style>
+
+<div
+  x-data="{ copiedMessage: '' }"
+  x-show="copiedMessage"
+  x-transition.opacity.duration.300ms
+  class="copy-message"
+  x-text="copiedMessage"
+></div>

@@ -1,0 +1,16 @@
+app_id: epm-oauth-authorization
+spec_version: v1
+kind: connection
+environments:
+  draft:
+    kind: oauth_auth_code_flow
+    type: member
+    app_config:
+      header:
+        content-type: application/x-www-form-urlencoded
+  live:
+    kind: oauth_auth_code_flow
+    type: member
+    app_config:
+      header:
+        content-type: application/x-www-form-urlencoded

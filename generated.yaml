@@ -1,0 +1,34 @@
+spec_version: v1
+kind: native
+name: epm_test
+style: default
+hide_reasoning: False
+description: |
+    Can answer questions about IBM Procurement by querying the epm database.
+instructions: Use the tools to answer the questions
+tools:
+  - getApiDim_s2p_supplier
+  - getApiFeedback
+  - getApiFeedbackInitialize
+  - getApiInvoices_and_spend
+  - getApiInvoice_spend_categories_and_po
+  - getApiInvoice_status_and_amount
+  - getApiNon_po_invoices_for_year
+  - getApiNumber_of_pos_with_open_invoices
+  - getApiPo_approval_requisition_based
+  - getApiPo_header_summary
+  - getApiPo_item_details
+  - getApiPo_payment_status
+  - getApiPo_requester
+  - getApiPos_by_supplier
+  - getApiPo_summary_report
+  - getApiPo_to_invoice_linkage
+  - getApiPurchase_order_count_by_supplier
+  - getApiRolling_supplier_spend
+  - getApiSearch_by_supplier_invoice
+  - getApiSpend_by_category
+  - getApiSupplier_spend
+  - getApiSuppliers_with_fully_invoiced_pos
+  - get_api_what_time_is_it
+  - getHealthPing
+restrictions: editable

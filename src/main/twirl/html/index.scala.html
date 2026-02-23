@@ -1,0 +1,141 @@
+@* src/main/twirl/html/index.scala.html *@ @(ssoToken: String, orchestrationID:
+String, hostUrl: String, agentId: String, agentEnvironmentId: String, name:
+String, sub: String)
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ask EPM</title>
+
+    <!-- Carbon Design System -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/@@carbon/styles@@1.88.0/css/styles.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://1.www.s81c.com/common/carbon/web-components/tag/next/themes.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://1.www.s81c.com/common/carbon/web-components/version/v2.45.0/grid.css"
+    />
+    <script
+      type="module"
+      src="https://1.www.s81c.com/common/carbon/web-components/version/v2.45.0/grid.min.js"
+    ></script>
+    <script
+      type="module"
+      src="https://1.www.s81c.com/common/carbon/web-components/version/v2.46.0/contained-list.min.js"
+    ></script>
+    <style>
+      body {
+        margin: 0;
+        font-family: "IBM Plex Sans", sans-serif;
+      }
+      .chat-container {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      .info-box {
+        background: #f4f4f4;
+        padding: 2rem;
+        border-radius: 4px;
+        height: 100vh;
+        overflow-y: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <cds-grid full-width>
+      <!-- Column 1: Web Chat -->
+      <!-- Column 2: Information Panel -->
+      <!--cds-column sm="4" md="8" lg="8"> @infoPanel(name, sub) </cds-column-->
+      <cds-column sm="4" md="8" lg="8"> </cds-column>
+
+      <cds-column sm="4" md="8" lg="8">
+        <div id="chat-root" class="chat-container"></div>
+      </cds-column>
+    </cds-grid>
+
+    <script>
+      function preSendHandler(event) {
+        if (event?.message?.content) {
+          console.log("Pre-send message:", event.message.content);
+        }
+      }
+
+      function sendHandler(event) {
+        console.log("Send event:", event);
+      }
+
+      function preReceiveHandler(event) {
+        if (event?.content) {
+          console.log("Pre-receive content:", event.content);
+        }
+      }
+
+      function receiveHandler(event) {
+        console.log("Received event:", event);
+      }
+
+      function onUserDefinedContentTypeReceived(userDefinedMessageObject) {
+        console.log("User defined content received:", userDefinedMessageObject);
+        return ` <div style='background-color:#e0f2f7;padding:10px;border-radius:5px;'>
+                      <p>Custom content for: ${userDefinedMessageObject.template}</p>
+                    </div>`;
+      }
+
+      function onLoad(instance) {
+        console.log("Watson Orchestrate chat instance loaded:", instance);
+        window.wxoChatInstance = instance;
+        instance.on("chatstarted", (instance) => {
+          console.log("Chat started event:", instance);
+        });
+        instance.on("pre:send", preSendHandler);
+        instance.on("send", sendHandler);
+        instance.on("pre:receive", preReceiveHandler);
+        instance.on("receive", receiveHandler);
+        instance.on(
+          "onUserDefinedContentTypeReceived",
+          onUserDefinedContentTypeReceived,
+        );
+      }
+
+      window.wxOConfiguration = {
+        clientVersion: "latest",
+        orchestrationID: "@orchestrationID",
+        hostUrl: "@hostUrl",
+        token: "@ssoToken",
+
+        layout: {
+          form: "custom",
+          customElement: null, // Will be set after DOM loads
+          showOrchestrateHeader: true,
+        },
+
+        chatOptions: {
+          onLoad: onLoad,
+          agentId: "@agentId",
+          agentEnvironmentId: "@agentEnvironmentId",
+          onUserDefinedContentTypeReceived: onUserDefinedContentTypeReceived,
+        },
+      };
+
+      setTimeout(function () {
+        const script = document.createElement("script");
+        script.src = `${window.wxOConfiguration.hostUrl}/wxochat/wxoLoader.js?embed=true`;
+        script.addEventListener("load", function () {
+          // Set the custom element after DOM is ready
+          window.wxOConfiguration.layout.customElement =
+            document.getElementById("chat-root");
+          wxoLoader.init();
+        });
+        document.head.appendChild(script);
+      }, 0);
+    </script>
+  </body>
+</html>

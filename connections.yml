@@ -1,0 +1,32 @@
+app_id: epm-tool-embed
+spec_version: v1
+kind: connection
+environments:
+  draft:
+    sso: true
+    server_url: https://emp-tool.com/oauth/echo
+    kind: oauth_auth_on_behalf_of_flow
+    type: member
+    idp_config:
+      header:
+        content-type: application/x-www-form-urlencoded
+      body:
+        requested_token_use: on_behalf_of
+        requested_token_type: urn:ietf:params:oauth:token-type:saml2
+    app_config:
+      header:
+        content-type: application/x-www-form-urlencoded
+  live:
+    sso: true
+    server_url: https://emp-tool.com/oauth/echo
+    kind: oauth_auth_on_behalf_of_flow
+    type: member
+    idp_config:
+      header:
+        content-type: application/x-www-form-urlencoded
+      body:
+        requested_token_use: on_behalf_of
+        requested_token_type: urn:ietf:params:oauth:token-type:saml2
+    app_config:
+      header:
+        content-type: application/x-www-form-urlencoded
