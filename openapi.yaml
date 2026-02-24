@@ -82,6 +82,237 @@ paths:
       security:
       - httpAuth: []
       - apiKeyAuth: []
+  /api/openAccount:
+    get:
+      description: 'Use this tool to open a new user account. The User information
+        will be automatically populated from the identity provider. '
+      operationId: getApiOpenaccount
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/users_PersistedField'
+        default:
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      security:
+      - httpAuth: []
+      - apiKeyAuth: []
+  /api/accountInfo:
+    get:
+      description: Retrieves the account information for a logged in user.
+      operationId: getApiAccountinfo
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/users_PersistedField'
+        default:
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      security:
+      - httpAuth: []
+      - apiKeyAuth: []
+  /api/pix/keys:
+    get:
+      description: List all PIX keys registered to your account. Returns keys with
+        their type (email, phone, etc.), value, and status. Use this to see which
+        keys you can share for receiving payments.
+      operationId: getApiPixKeys
+      parameters:
+      - name: status
+        in: query
+        description: 'Filter by status: active, inactive, or pending. Defaults to
+          all statuses.'
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/pix_keys_PersistedField'
+        default:
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      security:
+      - httpAuth: []
+      - apiKeyAuth: []
+    post:
+      description: 'Register a new PIX key for your account. The key will automatically
+        be associated with the logged-in user. Key types: email, phone, cpf, cnpj,
+        or random. Each user can have multiple keys but only one of each type. Example:
+        {"key_type": "email", "key_value": "maria@email.com"}'
+      operationId: postApiPixKeys
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PixKeyRegistrationRequest'
+        required: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/pix_keys_PersistedField'
+        '400':
+          description: 'Invalid value for: body'
+          content:
+            text/plain:
+              schema:
+                type: string
+        default:
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      security:
+      - httpAuth: []
+      - apiKeyAuth: []
+  /api/pix/keys/lookup:
+    get:
+      description: 'Look up who owns a PIX key before sending them money. Returns
+        the owner''s name and account information. Use this to verify you''re sending
+        to the right person. Example: GET /api/pix/keys/lookup?key_value=maria@email.com'
+      operationId: getApiPixKeysLookup
+      parameters:
+      - name: key_value
+        in: query
+        description: The PIX key to lookup (email, phone, CPF, etc.)
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PixKeyLookupResponse'
+        '400':
+          description: 'Invalid value for: query parameter key_value'
+          content:
+            text/plain:
+              schema:
+                type: string
+        default:
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      security:
+      - httpAuth: []
+      - apiKeyAuth: []
+  /api/pix/transfer:
+    post:
+      description: 'Send money instantly to another user using their PIX key. The
+        money will be deducted from your balance and added to the recipient. Example:
+        {"receiver_pix_key": "maria@email.com", "amount": 50.00, "description": "Lunch
+        payment"}'
+      operationId: postApiPixTransfer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PixTransferRequest'
+        required: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/transactions_PersistedField'
+        '400':
+          description: 'Invalid value for: body'
+          content:
+            text/plain:
+              schema:
+                type: string
+        default:
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      security:
+      - httpAuth: []
+      - apiKeyAuth: []
+  /api/pix/transactions:
+    get:
+      description: Get your PIX transaction history. Shows both money you've sent
+        and received. Use this to verify transfers completed successfully and track
+        your payment activity. Results are ordered by most recent first.
+      operationId: getApiPixTransactions
+      parameters:
+      - name: limit
+        in: query
+        description: Limit results (default 10)
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - name: offset
+        in: query
+        description: Offset for pagination (default 0)
+        required: false
+        schema:
+          type: integer
+          format: int32
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/transactions_PersistedField'
+        '400':
+          description: 'Invalid value for: query parameter limit, Invalid value for:
+            query parameter offset'
+          content:
+            text/plain:
+              schema:
+                type: string
+        default:
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      security:
+      - httpAuth: []
+      - apiKeyAuth: []
 components:
   schemas:
     ApiError:
@@ -91,6 +322,113 @@ components:
       - message
       properties:
         message:
+          type: string
+    PixKeyLookupResponse:
+      title: PixKeyLookupResponse
+      type: object
+      required:
+      - key_value
+      - owner_name
+      - account_type
+      - bank
+      properties:
+        key_value:
+          type: string
+        owner_name:
+          type: string
+        account_type:
+          type: string
+        bank:
+          type: string
+    PixKeyRegistrationRequest:
+      title: PixKeyRegistrationRequest
+      type: object
+      required:
+      - key_type
+      - key_value
+      properties:
+        key_type:
+          type: string
+        key_value:
+          type: string
+        is_primary:
+          type: boolean
+    PixTransferRequest:
+      title: PixTransferRequest
+      type: object
+      required:
+      - receiver_pix_key
+      - amount
+      properties:
+        receiver_pix_key:
+          type: string
+        amount:
+          type: number
+        description:
+          type: string
+    pix_keys_PersistedField:
+      title: pix_keys_PersistedField
+      type: object
+      required:
+      - pix_key_id
+      - user_id
+      - key_type
+      - key_value
+      properties:
+        pix_key_id:
+          description: Autoincrementing integer primary key
+          type: integer
+        user_id:
+          type: integer
+          format: int32
+        key_type:
+          type: string
+        key_value:
+          type: string
+        status:
+          type: string
+        is_primary:
+          type: boolean
+        created_at:
+          type: string
+        updated_at:
+          type: string
+    transactions_PersistedField:
+      title: transactions_PersistedField
+      type: object
+      required:
+      - transaction_id
+      - transaction_uuid
+      - sender_user_id
+      - receiver_user_id
+      - amount
+      - transaction_type
+      - description
+      properties:
+        transaction_id:
+          description: Autoincrementing integer primary key
+          type: integer
+        transaction_uuid:
+          type: string
+        sender_user_id:
+          type: integer
+          format: int32
+        receiver_user_id:
+          type: integer
+          format: int32
+        amount:
+          type: number
+        transaction_type:
+          type: string
+        pix_key_used:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+        completed_at:
           type: string
     users_PersistedField:
       title: users_PersistedField
@@ -103,12 +441,10 @@ components:
       - branch_number
       - account_type
       - balance
-      - created_at
-      - updated_at
       properties:
         user_id:
+          description: Autoincrementing integer primary key
           type: integer
-          format: int32
         cpf_cnpj:
           type: string
         name:

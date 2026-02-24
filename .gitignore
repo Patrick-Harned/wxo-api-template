@@ -13,3 +13,5 @@ target/
 sbt/
 .env
 *.db
+*-shm
+*-wal

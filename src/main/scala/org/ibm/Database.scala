@@ -15,11 +15,6 @@ import org.ibm.models.ApiError
 import scala.io.Source
 import org.pwharned.json.{JsonDeserializer, JsonSerializer}
 import org.pwharned.database.hkd._
-given PrimaryKeySchema: Schema[PrimaryKey[Int]] =
-  Schema.schemaForBigInt
-    .as[PrimaryKey[Int]]
-    .description("Autoincrementing integer primary key")
-
 def initializeDb(conn: Connection): IO[Unit] =
   IO.blocking { // Add .blocking
     Using(conn.createStatement()) { stmt =>

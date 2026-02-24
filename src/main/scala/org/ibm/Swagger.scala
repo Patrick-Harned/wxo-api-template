@@ -19,7 +19,12 @@ object SwaggerDocumentation {
     health,
     getUsers,
     openAccont,
-    accountInfo
+    accountInfo,
+    registerPixKey,
+    listMyPixKeys,
+    lookupPixKey,
+    makePixTransfer,
+    getTransactionHistory
   )
 
   val info = Info(
