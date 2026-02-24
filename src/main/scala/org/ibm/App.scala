@@ -134,6 +134,12 @@ object EPMTool extends IOApp {
         println("OpenAPI documentation written to openapi.yaml")
       }
 
+      dbUrl =
+        s"jdbc:sqlite:${sys.env.getOrElse("DB_PATH", "/app/storage/db/mydb.sqlite")}"
+      _ <- connectionResource(dbUrl).use { conn =>
+        initializeDb(conn)
+      }
+
       // Log startup info
       _ <- IO.println("=" * 60)
       _ <- IO.println(s"Starting TelAssets API Server")

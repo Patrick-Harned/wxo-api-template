@@ -16,7 +16,10 @@ import sttp.tapir.EndpointInput.AuthType.OAuth2
 
 object SwaggerDocumentation {
   val allEndpoints = List(
-    health
+    health,
+    getUsers,
+    openAccont,
+    accountInfo
   )
 
   val info = Info(

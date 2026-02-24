@@ -11,3 +11,5 @@ target/
 .sbt/
 \sbt/
 sbt/
+.env
+*.db

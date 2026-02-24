@@ -9,6 +9,7 @@ import org.pwharned.database.derive.{
 }
 import org.pwharned.database.hkd.*
 import org.pwharned.database.sql.*
+import org.pwharned.database.derive._
 import scala.language.implicitConversions
 //tapir
 import sttp.tapir.*
@@ -39,16 +40,20 @@ import org.ibm.authz.OIDCAuthMiddleware
 import org.ibm.authz.WxoJwtService
 import java.util.Base64
 import org.ibm.authz.JwtConfig
+
+import org.ibm.models._
+
 object Routes {
 
   given ExecutionContext =
     ExecutionContext.fromExecutor(Executors.newVirtualThreadPerTaskExecutor())
-  given DbTypeMapper        = Db2TypeMapper
-  given dialect: SqlDialect = Db2Dialect
+  given DbTypeMapper        = PostgresTypeMapper
+  given dialect: SqlDialect = PostgresDialect
   val connectionDetails =
     EnvLoader.loadFromFileOrEnv[ConnectionDetails](".env") match
       case Left(value)  => throw new RuntimeException(value)
       case Right(value) => value
+  /*
   TrustStoreManager.createTrustStoreFromUrl(
     dbUrl = sys.env.getOrElse(
       "CONNECTIONDETAILS_URL",
@@ -59,7 +64,7 @@ object Routes {
     trustStorePath = "truststore.jks",
     password = "changeit"
   )
-
+   */
   given db: Database = Database.apply(connectionDetails)
   db.createPool(connectionDetails)
 
@@ -177,6 +182,47 @@ object Routes {
       }
   }
 
+  def endpointForPost[T[_[_]] <: Product](
+      endpointName: String,
+      description: Option[String] = None
+  )(using
+      db: Database,
+      jd: JsonDeserializer[New[T]],
+      jdp: JsonDeserializer[Persisted[T]],
+      ib: InsertBinder[New[T]],
+      si: SqlInsert[New[T]],
+      js: JsonSerializer[Persisted[T]],
+      sqls: SqlSelect[Persisted[T]],
+      sqlsO: SqlSelect[Optional[T]],
+      row: Row[Persisted[T]],
+      mapDeser: MapDeserializer[Optional[T]],
+      fb: FieldBinder[Optional[T]],
+      schema: Schema[New[T]],
+      schemap: Schema[Persisted[T]],
+      ep: EndpointInput[Optional[T]]
+  ): ServerEndpoint[Any, IO] = {
+
+    type N = New[T]       // T[PersistedField]
+    type P = Persisted[T] // T[OptionalField]
+
+    val base = OIDCAuthMiddleware.authenticatedEndpoint.post
+      .in(jsonBody[New[T]])
+      .in("api" / endpointName)
+      .out(jsonBody[List[P]])
+      .description(endpointName)
+      .serverLogic { user => params =>
+        transform(
+          db.withConnection {
+            _.insert[N, P](params)
+          }
+        )
+      }
+    description match
+      case Some(value) => base.description(value)
+      case _           => base
+
+  }
+
   def endpointFor[T[_[_]] <: Product](
       endpointName: String,
       description: Option[String] = None
@@ -264,7 +310,7 @@ object Routes {
             Right(renderedHtml)
           }
       }
-
+  lazy val getUsers = endpointFor[users]("users", Some("Retrieves a list of users"))
   lazy val serverTime: ServerEndpoint[Any, IO] =
     OIDCAuthMiddleware.authenticatedEndpoint
       .in("api" / "what_time_is_it")
@@ -275,6 +321,48 @@ object Routes {
       .serverLogic { user => params =>
         val now: String = java.time.Instant.now().toString
         IO.pure(Right(CurrentTime(now)))
+
+      }
+
+  lazy val openAccont: ServerEndpoint[Any, IO] =
+    OIDCAuthMiddleware.authenticatedEndpoint
+      .in("api" / "openAccount")
+      .out(jsonBody[List[Persisted[users]]])
+      .description(
+        "Use this tool to open a new user account. The User information will be automatically populated from the identity provider. "
+      )
+      .serverLogic { user => params =>
+        import java.util.UUID
+
+        val newUser: New[users] =
+          users(
+            None,
+            UUID.randomUUID().toString(),
+            user.userInfo.sub,
+            UUID.randomUUID().toString(),
+            UUID.randomUUID().toString(),
+            "checking",
+            10000,
+            None,
+            None
+          );
+        transform(db.withConnection(x => x.insert[New[users], Persisted[users]](newUser)))
+
+      }
+
+  lazy val accountInfo: ServerEndpoint[Any, IO] =
+    OIDCAuthMiddleware.authenticatedEndpoint
+      .in("api" / "accountInfo")
+      .out(jsonBody[List[Persisted[users]]])
+      .description(
+        "Retrieves the account information for a logged in user."
+      )
+      .serverLogic { user => params =>
+        val empty                     = summon[EmptyOptional[users]].empty
+        val optional: Optional[users] = empty.copy(name = Some(user.userInfo.sub))
+        transform(
+          db.withConnection(x => x.queryParameterized[Optional[users], Persisted[users]](optional))
+        )
 
       }
 
