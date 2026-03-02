@@ -17,14 +17,7 @@ import sttp.tapir.EndpointInput.AuthType.OAuth2
 object SwaggerDocumentation {
   val allEndpoints = List(
     health,
-    getUsers,
-    openAccont,
-    accountInfo,
-    registerPixKey,
-    listMyPixKeys,
-    lookupPixKey,
-    makePixTransfer,
-    getTransactionHistory
+    embeddedChat
   )
 
   val info = Info(

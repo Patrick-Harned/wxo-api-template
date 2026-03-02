@@ -10,7 +10,6 @@ import org.pwharned.database.sql.Connection._
 import scala.concurrent.ExecutionContext
 import scala.util.Try
 import scala.compiletime.{erasedValue, summonInline}
-import org.ibm.PurchaseOrderCount
 import org.pwharned.json.{JsonDeserializer, JsonSerializer}
 import org.ibm.models.JsonMap.{given, _}
 sealed trait ToolCallParams
