@@ -47,7 +47,7 @@ graph LR
 ```
 
 ### OpenAPI Tools Architecture
-*Requires a full web server stack and manual API mapping.*
+*Requires manual API mapping.*
 
 ```mermaid
 graph LR
