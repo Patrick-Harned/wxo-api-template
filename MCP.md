@@ -108,8 +108,8 @@ In the WXO sandbox, you are limited to the credentials defined in the static WXO
 
 ### Code Complexity and Dependency Management
 *   **Library Restrictions:** You are limited to the libraries provided in the WXO environment. If you need a specific version of a library or a niche SDK, you are often out of luck.
-*   **Monolithic Scripts:** As logic grows, a Python tool becomes a "God Script"—a single, massive file that is hard to test and maintain.
-*   **MCP/Server Advantage:** An MCP server is a standard software project. You can use Docker, CI/CD, and any library in the Python or Node.js ecosystem, organizing code into clean, modular architectures.
+*   **Monolithic Scripts:** As the number of tools grows it may be difficult to test and manage a large number of python tools. Adding tools requires coordination with the orchestrate server..
+*   **MCP/Server Advantage:** An MCP server is a standard software project. You can use Docker, CI/CD, and any library in the Python or Node.js ecosystem, organizing code into clean, modular architectures. Once a tool is added, it is immediately available for use in WXO without additional configuration changes due to runtime tool discovery.
 
 ---
 
