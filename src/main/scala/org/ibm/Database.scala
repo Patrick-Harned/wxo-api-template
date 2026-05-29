@@ -54,7 +54,7 @@ lazy val initializeFeedBackService =
     .serverLogic { user => formData =>
       val dbUrl =
         s"jdbc:sqlite:${sys.env.getOrElse("DB_PATH", "/app/storage/db/mydb.sqlite")}"
-      user.userInfo.email.map(x => x.toLowerCase()) match
+      user.flatMap(x => x.userInfo.email.map(x => x.toLowerCase())) match
 
         case Some(value) if value == "patrick.harned@ibm.com" =>
           connectionResource(dbUrl)

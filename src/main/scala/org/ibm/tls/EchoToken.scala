@@ -10,6 +10,7 @@ import sttp.tapir.server.interceptor.RequestInterceptor
 import org.ibm.authz.OIDCConfig
 import org.ibm.authz.TokenService
 import org.ibm.models.ApiError
+import org.ibm.authz.UserInfo
 
 lazy val echoToken: ServerEndpoint[Any, IO] =
   endpoint.post
@@ -25,7 +26,9 @@ lazy val echoToken: ServerEndpoint[Any, IO] =
             .get("assertion")
             .toRight(
               ApiError(
-                s"Missing assertion in request. Requested fields: ${formData.toList.map { case (k, v) => s"$k:$v" }.mkString(",")}"
+                s"Missing assertion in request. Requested fields: ${formData.toList
+                    .map { case (k, v) => s"$k:$v" }
+                    .mkString(",")}"
               )
             )
         )
@@ -67,7 +70,8 @@ lazy val echoToken: ServerEndpoint[Any, IO] =
 
           val otherProblematicString = if (otherProblematicFields.nonEmpty) {
             s"\n  Other problematic fields (empty or 'null' string): $otherProblematicFields"
-          } else ""
+          }
+          else ""
 
           s"Submitted form data analysis:\n  $clientIdInfo\n  $clientSecretInfo$otherProblematicString"
         }
@@ -105,30 +109,32 @@ lazy val echoToken: ServerEndpoint[Any, IO] =
                 } yield ()
               )
                */
-              finalResult <- {
-
-                ts.introspectToken(assertionValue).attempt.map {
-                  case Left(e)  => Left(ApiError(e.getMessage))
-                  case Right(x) =>
-                    val now           = System.currentTimeMillis() / 1000
-                    val remainingTime = x.exp.map(exp => (exp - now).toInt)
-                    val maxExpiration =
-                      sys.env
-                        .get("TOKEN_EXPIRY")
-                        .flatMap(_.toIntOption)
-                        .getOrElse(300)
-                    val cappedExpiration =
-                      remainingTime.map(t => Math.min(t, maxExpiration))
-
-                    Right(
-                      TokenResponse(
-                        access_token = assertionValue,
-                        token_type = "Bearer",
-                        expires_in = cappedExpiration
-                      )
+              finalResult <- ts.validateToken(assertionValue).map { response =>
+                val userInfo = response.map(x => x._1).getOrElse(UserInfo.Anonymous)
+                val now      = System.currentTimeMillis() / 1000
+                val remainingTime =
+                  response
+                    .flatMap(x =>
+                      x._3
+                        .flatMap(y => y.exp.map(ex => ex.toInt - System.currentTimeMillis().toInt))
                     )
-                }
+                    .getOrElse(600)
+                val maxExpiration =
+                  sys.env
+                    .get("TOKEN_EXPIRY")
+                    .flatMap(_.toIntOption)
+                    .getOrElse(300)
+                val cappedExpiration = Math.min(remainingTime, maxExpiration)
+
+                Right(
+                  TokenResponse(
+                    access_token = assertionValue,
+                    token_type = "Bearer",
+                    expires_in = Some(cappedExpiration.toInt)
+                  )
+                )
               }
+
             } yield finalResult
         }
       } yield result

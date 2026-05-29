@@ -15,7 +15,11 @@ import sttp.tapir.cookie
 import org.ibm.TelCodec.jsonBody
 import org.ibm.models.ApiError
 import sttp.model.headers.WWWAuthenticateChallenge
-case class AuthenticatedUser(userInfo: UserInfo, token: String)
+case class AuthenticatedUser(
+    userInfo: UserInfo,
+    token: Option[String],
+    introspectionResponse: Option[IntrospectionResponse]
+)
 
 object AuthenticatedUser {
   implicit val codec: JsonValueCodec[AuthenticatedUser] = JsonCodecMaker.make
@@ -35,18 +39,14 @@ object OIDCAuthMiddleware {
         .mapDecode { case (bearerToken, cookieToken) =>
           bearerToken.orElse(cookieToken) match {
             case Some(token) => sttp.tapir.DecodeResult.Value(token)
-            case None        =>
+            case None =>
               sttp.tapir.DecodeResult.Missing // This won't create - {} with multiple optional auths
           }
         }(token => (Some(token), None))
     )
     .errorOut(jsonBody[ApiError])
-    .serverSecurityLogic {
-      token => // This connects Tapir to your existing validation logic
-        validateToken(token).map {
-          case Some(userInfo) => Right(AuthenticatedUser(userInfo, token))
-          case None           => Left(ApiError("Invalid or expired token"))
-        }
+    .serverSecurityLogic { token => // This connects Tapir to your existing validation logic
+      tokenService.validateToken(token).map(Right(_))
     }
 
   lazy val config: OIDCConfig         = OIDCConfig.fromEnv
@@ -65,83 +65,70 @@ object OIDCAuthMiddleware {
   private def getCookie(req: Request[IO], name: String): Option[RequestCookie] =
     req.cookies.find(_.name == name)
 
-  private def validateToken(token: String): IO[Option[UserInfo]] = {
-    tokenService
-      .introspectToken(token)
-      .flatMap { introspection =>
-        if (introspection.active) {
-          tokenService.fetchUserInfo(token).map(Some(_))
-        } else {
-          IO.pure(None)
-        }
-      }
-      .handleErrorWith { ex =>
-        IO.println(s"Token validation failed: ${ex.getMessage}") *> IO.pure(
-          None
-        )
-      }
-  }
-  private def authUser
-      : Kleisli[IO, Request[IO], Either[String, AuthenticatedUser]] =
+  private def authUser: Kleisli[IO, Request[IO], Either[String, AuthenticatedUser]] =
     Kleisli { request =>
       extractToken(request) match {
         case Some(token) =>
-          validateToken(token).map {
-            case Some(userInfo) => Right(AuthenticatedUser(userInfo, token))
-            case None           => Left("Invalid or expired token")
-          }
+          tokenService
+            .validateToken(token)
+            .map(x =>
+              x match
+                case Some(value) => Right(value)
+                case None        => Left("Unable to authenticate user")
+            )
         case None =>
           IO.pure(Left("No authentication token found"))
       }
     }
-  private def isApiRequest(req: Request[IO]): Boolean =
-    getBearerToken(req).isDefined
+  private def isApiRequest(req: Request[IO]): Boolean = getBearerToken(req).isDefined
 
-  private def onAuthFailure: AuthedRoutes[String, IO] = Kleisli { req =>
-    // For API requests, return 401
-    if (isApiRequest(req.req)) {
-      OptionT.liftF(
-        Unauthorized(
-          headers.`WWW-Authenticate`(Challenge("Bearer", "api"))
+  private def onAuthFailure: AuthedRoutes[String, IO] =
+    Kleisli { req =>
+      // For API requests, return 401
+      if (isApiRequest(req.req)) {
+        OptionT.liftF(
+          Unauthorized(
+            headers.`WWW-Authenticate`(Challenge("Bearer", "api"))
+          )
         )
-      )
-    } else {
-      // For browser requests, check if we can reuse existing token
-      getCookie(req.req, config.tokenName) match {
-        case Some(cookie) =>
-          // Validate the existing token before redirecting
-          OptionT.liftF(
-            validateToken(cookie.content).flatMap {
-              case Some(userInfo) =>
-                // Token is still valid! Reuse it instead of redirecting
-                // This shouldn't happen if authUser worked, but defensive check
-                IO.pure(
-                  Response[IO](status = Status.Found)
-                    .withHeaders(Location(req.req.uri))
-                )
-              case None =>
-                // Token invalid/expired - remove cookie and redirect to OAuth
-                val requestPath = req.req.uri.path.toString
-                val redirectUri = tokenService.authUri(requestPath)
-                TemporaryRedirect(Location(redirectUri)).map(
-                  _.removeCookie(
-                    ResponseCookie(
-                      name = config.tokenName,
-                      content = "",
-                      maxAge = Some(-1)
+      }
+      else {
+        // For browser requests, check if we can reuse existing token
+        getCookie(req.req, config.tokenName) match {
+          case Some(cookie) =>
+            // Validate the existing token before redirecting
+            OptionT.liftF(
+              tokenService.validateToken(cookie.content).flatMap {
+                case Some(userInfo) =>
+                  // Token is still valid! Reuse it instead of redirecting
+                  // This shouldn't happen if authUser worked, but defensive check
+                  IO.pure(
+                    Response[IO](status = Status.Found)
+                      .withHeaders(Location(req.req.uri))
+                  )
+                case None =>
+                  // Token invalid/expired - remove cookie and redirect to OAuth
+                  val requestPath = req.req.uri.path.toString
+                  val redirectUri = tokenService.authUri(requestPath)
+                  TemporaryRedirect(Location(redirectUri)).map(
+                    _.removeCookie(
+                      ResponseCookie(
+                        name = config.tokenName,
+                        content = "",
+                        maxAge = Some(-1)
+                      )
                     )
                   )
-                )
-            }
-          )
-        case None =>
-          // No token - redirect to OAuth
-          val requestPath = req.req.uri.path.toString
-          val redirectUri = tokenService.authUri(requestPath)
-          OptionT.liftF(TemporaryRedirect(Location(redirectUri)))
+              }
+            )
+          case None =>
+            // No token - redirect to OAuth
+            val requestPath = req.req.uri.path.toString
+            val redirectUri = tokenService.authUri(requestPath)
+            OptionT.liftF(TemporaryRedirect(Location(redirectUri)))
+        }
       }
     }
-  }
 
   val middleware: AuthMiddleware[IO, AuthenticatedUser] =
     AuthMiddleware(authUser, onAuthFailure)
@@ -165,10 +152,9 @@ object OIDCAuthMiddleware {
       pf: PartialFunction[AuthedRequest[IO, AuthenticatedUser], IO[
         Response[IO]
       ]]
-  ): HttpRoutes[IO] = {
+  ): HttpRoutes[IO] =
     authenticated {
       case req if hasRole(req.context, role) => pf(req)
-      case _ => Forbidden("Insufficient permissions")
+      case _                                 => Forbidden("Insufficient permissions")
     }
-  }
 }

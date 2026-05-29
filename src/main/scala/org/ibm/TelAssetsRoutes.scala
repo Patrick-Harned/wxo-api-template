@@ -289,26 +289,32 @@ object Routes {
       .out(htmlBodyUtf8)
       .description("Return the web chat interface")
       .serverLogic { user => params =>
-        val jwtConfig  = JwtConfig.fromEnvironmentBase64().get
-        val jwtService = WxoJwtService(jwtConfig)
-        val token: IO[String] =
-          jwtService.createJwtToken(user.userInfo, user.token)
+        {
+          val jwtConfig  = JwtConfig.fromEnvironmentBase64().get
+          val jwtService = WxoJwtService(jwtConfig)
 
-        token
-          .map { wxoToken =>
-            val renderedHtml = html
-              .index(
-                wxoToken,
-                wxoConfig.orchestrationId,
-                wxoConfig.hostUrl,
-                wxoConfig.agentId,
-                wxoConfig.agentEnvironmentId,
-                user.userInfo.name.getOrElse(user.userInfo.sub),
-                user.userInfo.sub
-              )
-              .body
-            Right(renderedHtml)
-          }
+          for {
+            user <- IO.fromOption(user)(new RuntimeException("User not found"))
+            userToken <- IO.fromOption(user.token)(
+              throw new RuntimeException("User token not found")
+            )
+            token <-
+              jwtService.createJwtToken(user.userInfo, userToken).map { wxoToken =>
+                html
+                  .index(
+                    wxoToken.getOrElse(throw new RuntimeException("Unauthorized")),
+                    wxoConfig.orchestrationId,
+                    wxoConfig.hostUrl,
+                    wxoConfig.agentId,
+                    wxoConfig.agentEnvironmentId,
+                    user.userInfo.name.getOrElse(user.userInfo.sub),
+                    user.userInfo.sub
+                  )
+                  .body
+              }
+
+          } yield Right(token)
+        }
       }
   lazy val serverTime: ServerEndpoint[Any, IO] =
     OIDCAuthMiddleware.authenticatedEndpoint
@@ -322,4 +328,4 @@ object Routes {
         IO.pure(Right(CurrentTime(now)))
 
       }
- }
+}

@@ -15,6 +15,9 @@ import cats.data.EitherT
 import scala.util.Try
 import org.http4s.client.blaze.BlazeClientBuilder
 import java.net.URLEncoder
+import pdi.jwt.Jwt
+import pdi.jwt.JwtOptions
+import org.ibm.models.JsonMap
 
 case class TokenResponse(
     access_token: String,
@@ -28,11 +31,9 @@ object TokenResponse {
   implicit val codec: JsonValueCodec[TokenResponse] = JsonCodecMaker.make
   implicit val entityDecoder: EntityDecoder[IO, TokenResponse] =
     EntityDecoder.decodeBy(MediaType.application.json) { (m: Media[IO]) =>
-      {
-        EitherT {
-          m.as[String]
-            .map(x => readFromString[TokenResponse](x).asRight[DecodeFailure])
-        }
+      EitherT {
+        m.as[String]
+          .map(x => readFromString[TokenResponse](x).asRight[DecodeFailure])
       }
     }
 
@@ -51,13 +52,9 @@ object IntrospectionResponse {
     JsonCodecMaker.make
   implicit val entityDecoder: EntityDecoder[IO, IntrospectionResponse] =
     EntityDecoder.decodeBy(MediaType.application.json) { (m: Media[IO]) =>
-      {
-        EitherT {
-          m.as[String]
-            .map(x =>
-              readFromString[IntrospectionResponse](x).asRight[DecodeFailure]
-            )
-        }
+      EitherT {
+        m.as[String]
+          .map(x => readFromString[IntrospectionResponse](x).asRight[DecodeFailure])
       }
     }
 
@@ -72,18 +69,23 @@ case class UserInfo(
 )
 
 object UserInfo {
-  implicit val codec: JsonValueCodec[UserInfo]            = JsonCodecMaker.make
+  implicit val codec: JsonValueCodec[UserInfo] = JsonCodecMaker.make
   implicit val entityDecoder: EntityDecoder[IO, UserInfo] =
     EntityDecoder.decodeBy(MediaType.application.json) { (m: Media[IO]) =>
-      {
-        EitherT {
-          m.as[String]
-            .map(x => readFromString[UserInfo](x).asRight[DecodeFailure])
-        }
+      EitherT {
+        m.as[String]
+          .map(x => readFromString[UserInfo](x).asRight[DecodeFailure])
       }
     }
 
-  val Anonymous = UserInfo("anonymous", None, None, None, None)
+  val Anonymous =
+    UserInfo(
+      "anonymous",
+      None,
+      None,
+      None,
+      None
+    )
 }
 
 // Error response model for better error handling
@@ -96,21 +98,47 @@ object ErrorResponse {
   implicit val codec: JsonValueCodec[ErrorResponse] = JsonCodecMaker.make
   implicit val entityDecoder: EntityDecoder[IO, ErrorResponse] =
     EntityDecoder.decodeBy(MediaType.application.json) { (m: Media[IO]) =>
-      {
-        EitherT {
-          m.as[String]
-            .map(x => readFromString[ErrorResponse](x).asRight[DecodeFailure])
-        }
+      EitherT {
+        m.as[String]
+          .map(x => readFromString[ErrorResponse](x).asRight[DecodeFailure])
       }
     }
 }
 
-class TokenService(config: org.ibm.authz.OIDCConfig)
-    extends Http4sClientDsl[IO] {
+class TokenService(config: org.ibm.authz.OIDCConfig) extends Http4sClientDsl[IO] {
 
   val client = BlazeClientBuilder[IO].resource
 
-  def authUri(state: String): Uri = {
+  def validateToken(token: String): IO[Option[AuthenticatedUser]] =
+    // Path 1: traditional OIDC
+    introspectToken(token)
+      .flatMap { introspection =>
+        fetchUserInfo(token).map(userInfo =>
+          Some(AuthenticatedUser(userInfo, Some(token), Some(introspection)))
+        )
+      }
+      .handleErrorWith { _ =>
+        // Path 2: Entra - decode JWT locally
+        IO(decodeJwt(token)).map {
+          case Some(user) => Some(AuthenticatedUser(user, Some(token), None))
+          case None       => None // expired or invalid → triggers redirect
+        }
+      }
+  private def decodeJwt(token: String): Option[UserInfo] =
+    Jwt
+      .decode(token, JwtOptions(signature = false))
+      .toOption
+      .flatMap { claim =>
+        val now = System.currentTimeMillis() / 1000
+        // check expiry first - if expired, return None
+        val expired = claim.expiration.exists(_ < now)
+        if (expired) None
+        else {
+          Some(UserInfo.Anonymous)
+        }
+      }
+
+  def authUri(state: String): Uri =
     Uri
       .unsafeFromString(config.authorizationEndpoint)
       .withQueryParam("response_type", "code")
@@ -118,12 +146,12 @@ class TokenService(config: org.ibm.authz.OIDCConfig)
       .withQueryParam("redirect_uri", config.redirectUri)
       .withQueryParam("scope", config.scope)
       .withQueryParam("state", state)
-  }
-  def shouldRefreshToken(token: String): IO[Boolean] = {
+  private def shouldRefreshToken(token: String): IO[Boolean] =
     introspectToken(token).map { introspection =>
       if (!introspection.active) {
         true // Token invalid - needs refresh
-      } else {
+      }
+      else {
         // Check if token expires soon (within 5 minutes)
         introspection.exp.exists { exp =>
           val now = System.currentTimeMillis() / 1000
@@ -131,7 +159,6 @@ class TokenService(config: org.ibm.authz.OIDCConfig)
         }
       }
     }
-  }
 
   def exchangeCodeForToken(code: String): IO[TokenResponse] = {
     val formData = UrlForm(
@@ -167,9 +194,9 @@ class TokenService(config: org.ibm.authz.OIDCConfig)
       }
     )
   }
-  def introspectToken(token: String): IO[IntrospectionResponse] = {
+  private def introspectToken(token: String): IO[IntrospectionResponse] = {
     val credentials = s"${config.clientId}:${config.clientSecret}"
-    val encoded     =
+    val encoded =
       Base64.getEncoder.encodeToString(credentials.getBytes("UTF-8"))
 
     val formData = Map(
@@ -207,7 +234,7 @@ class TokenService(config: org.ibm.authz.OIDCConfig)
     )
   }
 
-  def fetchUserInfo(token: String): IO[UserInfo] = {
+  private def fetchUserInfo(token: String): IO[UserInfo] = {
     val request = GET(
       Uri.unsafeFromString(config.userInfoEndpoint)
     ).withHeaders(
@@ -228,7 +255,7 @@ class TokenService(config: org.ibm.authz.OIDCConfig)
   }
 
   // Helper method to refresh a token if needed
-  def refreshToken(refreshToken: String): IO[TokenResponse] = {
+  private def refreshToken(refreshToken: String): IO[TokenResponse] = {
     val formData = UrlForm(
       "grant_type"    -> "refresh_token",
       "refresh_token" -> refreshToken,
