@@ -1774,7 +1774,7 @@ This query retrieves a list of invoices that are not associated with a Purchase 
 **1. Switch to namespace**
 
 ```bash
-oc project software-hub
+oc project  ibm-services
 ```
 
 **2. Create secret from .env file**

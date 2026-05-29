@@ -26,6 +26,8 @@ COPY entrypoint.sh entrypoint.sh
 COPY src/ ./src/
 COPY .jvmopts ./
 
+COPY lib/ ./lib/
+
 RUN sbt 'set assembly / test := {}' clean assembly
 
 # Runtime stage
