@@ -1,0 +1,5 @@
+-Xss8m
+-XX:ReservedCodeCacheSize=256m
+-XX:+UseContainerSupport
+-XX:MaxRAMPercentage=75.0
+-XX:MaxDirectMemorySize=256m

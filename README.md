@@ -1,4 +1,3 @@
-
 # WXO Embedded Chat with SSO and OAuth2 Token Exchange
 
 ## Overview
@@ -6,6 +5,7 @@
 This guide shows how to embed watsonx Orchestrate (WXO) chat in your application with SSO authentication, where WXO automatically exchanges your SSO token to call protected APIs on behalf of users.
 
 **The flow:**
+
 ```
 User → SSO Login → Your App → Embedded Chat with JWT → WXO
                                                         ↓
@@ -21,6 +21,7 @@ User → SSO Login → Your App → Embedded Chat with JWT → WXO
 It's a way to exchange one token (SSO token) for another token (API access token) without the user re-authenticating.
 
 **Example scenario:**
+
 1. User logs into your app with Entra ID → gets SSO token: `eyJ0eXAi...abc123`
 2. User asks chat a question requiring data from your API
 3. WXO takes that SSO token and exchanges it for an API access token
@@ -71,6 +72,7 @@ client_secret=YOUR_CLIENT_SECRET
 ```
 
 **The SSO token:**
+
 - Proves the user authenticated with your SSO provider
 - Contains user identity and permissions
 - Is what WXO will exchange for an API access token
@@ -140,14 +142,14 @@ user_payload contains (after WXO decrypts):
 
 **Field Explanations:**
 
-| Field | Required | Description | Example |
-|-------|----------|-------------|---------|
-| `sub` | Yes | JWT subject - user identifier | `"user@example.com"` |
-| `woUserId` | Yes | WXO user ID - must match `sub` | `"user@example.com"` |
-| `woTenantId` | Yes |  for ibm cloud this is the full orchestration id which combines the instance id and the tenant id | `"instanceid_tenant456"` |
-| `user_payload` | Yes | Base64-encoded encrypted JSON containing `sso_token` | `"aGV5IG15IGZyaWVuZA=="` |
-| `context` | Optional | User metadata visible in agent context | `{"email": "...", "displayName": "..."}` |
-| `exp` | Yes | Expiration timestamp (Unix epoch) | `1735689600` |
+| Field          | Required | Description                                                                                      | Example                                  |
+| -------------- | -------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| `sub`          | Yes      | JWT subject - user identifier                                                                    | `"user@example.com"`                     |
+| `woUserId`     | Yes      | WXO user ID - must match `sub`                                                                   | `"user@example.com"`                     |
+| `woTenantId`   | Yes      | for ibm cloud this is the full orchestration id which combines the instance id and the tenant id | `"instanceid_tenant456"`                 |
+| `user_payload` | Yes      | Base64-encoded encrypted JSON containing `sso_token`                                             | `"aGV5IG15IGZyaWVuZA=="`                 |
+| `context`      | Optional | User metadata visible in agent context                                                           | `{"email": "...", "displayName": "..."}` |
+| `exp`          | Yes      | Expiration timestamp (Unix epoch)                                                                | `1735689600`                             |
 
 **Critical: woTenantId Format**
 
@@ -172,12 +174,15 @@ This ID is used by WXO's credential manager to look up your connection configura
 ```
 
 **Required fields in user_payload:**
+
 - `sso_token` (string): The OAuth2 access token from your SSO provider
 
 **Optional fields:**
+
 - Any custom data you want WXO to have (will be accessible in agent context)
 
 **After encryption with IBM's public key, it becomes:**
+
 ```
 "aGV5IG15IGZyaWVuZCBob3cgYXJlIHlvdT9JIGFtIGRvaW5nIHdlbGwgdGhhbmsgeW91IGZvciBhc2tpbmcuLi4="
 ```
@@ -203,6 +208,7 @@ val jwtContent = Map[String, Any](
 ```
 
 **What happens:**
+
 1. User logs in → SSO token `abc123` → Cache stores token (expires in 5 min)
 2. User logs out, logs back in → SSO token `xyz789` (NEW token)
 3. User makes request → WXO finds cached token from step 1 → Uses **old SSO token** ✗
@@ -225,6 +231,7 @@ val woUserId = s"${userInfo.sub}_${tokenHash}"
 ```
 
 **Now:**
+
 1. Session 1: `woUserId = john@example.com_a1b2c3d4` → Cache entry A
 2. Session 2: `woUserId = john@example.com_e5f6g7h8` → Cache entry B (different key)
 
@@ -235,6 +242,7 @@ val woUserId = s"${userInfo.sub}_${tokenHash}"
 **The CM checks cache expiration using the `expires_in` value you return from your echo server.**
 
 **Cache lifecycle:**
+
 ```
 Token exchanged → Stored with expiry_time = now + expires_in
 Later request → Check: expiry_time < now? → If yes: exchange again
@@ -244,11 +252,11 @@ Later request → Check: expiry_time < now? → If yes: exchange again
 
 **Three different expiration times:**
 
-| Token | Expires | Controlled By |
-|-------|---------|---------------|
-| SSO token (from IDP) | 1 hour | Your SSO provider |
-| Cached token (in CM) | `expires_in` | Your echo server |
-| WXO JWT | `exp` claim | Your JWT creation |
+| Token                | Expires      | Controlled By     |
+| -------------------- | ------------ | ----------------- |
+| SSO token (from IDP) | 1 hour       | Your SSO provider |
+| Cached token (in CM) | `expires_in` | Your echo server  |
+| WXO JWT              | `exp` claim  | Your JWT creation |
 
 **If cache expires longer than SSO token:**
 
@@ -274,6 +282,7 @@ TokenResponse(
 ```
 
 **Why 2 minutes:**
+
 - Short enough that SSO tokens rarely expire within this window
 - Long enough to benefit from caching (30x fewer exchanges)
 - Simple - no parsing or calculation needed
@@ -320,6 +329,7 @@ expires_in = get_token_expiry(request.form['assertion'])
 ```
 
 **Benefits:**
+
 - Cache lasts as long as SSO token is valid
 - Automatic adjustment for different token lifetimes
 - Never exceeds SSO token expiry
@@ -335,7 +345,7 @@ def createJwtToken(userInfo: UserInfo, ssoToken: String): IO[String] = {
     val tokenHash = MessageDigest.getInstance("SHA-256")
       .digest(ssoToken.getBytes("UTF-8"))
       .take(8).map("%02x".format(_)).mkString
-    
+
     val jwtContent = Map[String, Any](
       "sub" -> userInfo.sub,
       "woUserId" -> s"${userInfo.sub}_${tokenHash}",  // Unique per SSO token
@@ -343,7 +353,7 @@ def createJwtToken(userInfo: UserInfo, ssoToken: String): IO[String] = {
       "user_payload" -> encryptUserPayload(UserPayload(ssoToken)),
       "context" -> Map("email" -> userInfo.email.getOrElse(""))
     )
-    
+
     Jwt.encode(JwtClaim(writeToString(jwtContent), expiresAt), privateKey, RS256)
   }
 }
@@ -376,7 +386,7 @@ def calculateTokenExpiry(ssoToken: String): Int = {
         case n: Int => Some(n.toLong)
         case _ => None
       })
-    
+
     exp.map { e =>
       val remaining = (e - System.currentTimeMillis() / 1000 - 60).toInt
       Math.max(0, Math.min(remaining, 300))
@@ -387,13 +397,14 @@ def calculateTokenExpiry(ssoToken: String): Int = {
 
 ## Quick Reference
 
-| Scenario | woUserId | Echo expires_in |
-|----------|----------|-----------------|
+| Scenario        | woUserId                      | Echo expires_in                 |
+| --------------- | ----------------------------- | ------------------------------- |
 | **Recommended** | `${userId}_${hash(ssoToken)}` | Dynamic (parse SSO exp) or 120s |
-| Simple/Testing | `${userId}_${hash(ssoToken)}` | 120s (2 min) |
-| High Security | `${userId}_${hash(ssoToken)}` | 60s (1 min) |
+| Simple/Testing  | `${userId}_${hash(ssoToken)}` | 120s (2 min)                    |
+| High Security   | `${userId}_${hash(ssoToken)}` | 60s (1 min)                     |
 
 **Key points:**
+
 - ✓ Always hash SSO token into `woUserId`
 - ✓ Return conservative `expires_in` or calculate from SSO token
 - ✓ Cache invalidates automatically when SSO token changes
@@ -401,7 +412,6 @@ def calculateTokenExpiry(ssoToken: String): Int = {
 ## Step-by-Step Implementation
 
 ### Prerequisites
-
 
 ### Step 1: Generate RSA Key Pair
 
@@ -597,7 +607,7 @@ kind: connection
 environments:
   draft:
     kind: oauth_auth_token_exchange_flow
-    type: member  # Token per user (not shared)
+    type: member # Token per user (not shared)
     sso: true
     server_url: https://epm-tool.com
     app_config:
@@ -667,7 +677,7 @@ def create_wxo_jwt(user_info, sso_token):
     user_payload = {
         "sso_token": sso_token  # The SSO token from Step 3
     }
-    
+
     # 2. Encrypt user payload with IBM's public key
     encrypted_payload = encrypt_with_rsa_oaep(
         json.dumps(user_payload),
@@ -676,7 +686,7 @@ def create_wxo_jwt(user_info, sso_token):
         mgf_algorithm='MGF1-SHA256'
     )
     encrypted_base64 = base64_encode(encrypted_payload)
-    
+
     # 3. Create JWT payload
     jwt_payload = {
         "sub": user_info.email,
@@ -690,14 +700,14 @@ def create_wxo_jwt(user_info, sso_token):
         },
         "exp": current_timestamp + 3600  # 1 hour from now
     }
-    
+
     # 4. Sign JWT with your private key
     jwt_token = sign_jwt(
         jwt_payload,
         your_private_key,
         algorithm='RS256'
     )
-    
+
     return jwt_token
 ```
 
@@ -720,39 +730,39 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class WxoJwtService {
-    
+
     private PrivateKey yourPrivateKey;
     private PublicKey ibmPublicKey;
-    
+
     public String encryptUserPayload(String ssoToken) throws Exception {
         // Create user payload
         Map<String, String> userPayload = new HashMap<>();
         userPayload.put("sso_token", ssoToken);
         String json = new ObjectMapper().writeValueAsString(userPayload);
-        
+
         // Encrypt with IBM's public key
         Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
         OAEPParameterSpec oaepParams = new OAEPParameterSpec(
             "SHA-256", "MGF1", MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT
         );
         cipher.init(Cipher.ENCRYPT_MODE, ibmPublicKey, oaepParams);
-        
+
         byte[] encrypted = cipher.doFinal(json.getBytes("UTF-8"));
         return Base64.getEncoder().encodeToString(encrypted);
     }
-    
-    public String createJwt(String userEmail, String userName, String ssoToken) 
+
+    public String createJwt(String userEmail, String userName, String ssoToken)
             throws Exception {
-        
+
         String encryptedPayload = encryptUserPayload(ssoToken);
-        
+
         Map<String, Object> context = new HashMap<>();
         context.put("email", userEmail);
         context.put("displayName", userName);
         context.put("wxo_role", "user");
-        
+
         long now = System.currentTimeMillis() / 1000;
-        
+
         return Jwts.builder()
             .setSubject(userEmail)
             .claim("woUserId", userEmail)
@@ -768,6 +778,7 @@ public class WxoJwtService {
 ```
 
 **Critical encryption parameters:**
+
 - **Algorithm:** RSA/ECB/OAEPWithSHA-256AndMGF1Padding
 - **Hash:** SHA-256
 - **MGF:** MGF1 with SHA-256
@@ -782,81 +793,83 @@ public class WxoJwtService {
 ```html
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ask EPM</title>
-</head>
-<body>
-  <h1>Welcome to Ask EPM</h1>
-  
-  <!-- Chat widget container -->
-  <div id="root"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ask EPM</title>
+  </head>
+  <body>
+    <h1>Welcome to Ask EPM</h1>
 
-  <script>
-    // Configuration for WXO chat
-    window.wxOConfiguration = {
-      clientVersion: "latest",
-      
-      // Your WXO orchestration ID
-      orchestrationID: "bd8685e8de644893a69fd83941639e7c_c7526c9f-3f74-42d6-b062-ae756e31b956",
-      
-      // WXO host URL
-      hostUrl: "https://orchestrate.ibm.com",
-      
-      // Where to render the chat
-      rootElementId: "root",
-      
-      // Layout: 'small' (widget) or 'full' (full page)
-      layout: "small",
-      
-      // Show launcher button or render directly
-      showLauncher: false,
-      
-      // THE JWT TOKEN - this is what ties everything together
-      // This token contains the encrypted sso_token that WXO will exchange
-      token: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwid29Vc2VySWQiOiJ1c2VyQGV4YW1wbGUuY29tIiwid29UZW5hbnRJZCI6ImJkODY4NWU4ZGU2NDQ4OTNhNjlmZDgzOTQxNjM5ZTdjX2M3NTI2YzlmLTNmNzQtNDJkNi1iMDYyLWFlNzU2ZTMxYjk1NiIsInVzZXJfcGF5bG9hZCI6ImFHVjVJRzE1SUdaeWFXVnVaQ0JvYjNjZ1lYSmxJSGx2ZFQ5SklHRnRJR1J2YVc1bklIZGxiR3dnZEdoaGJtc2dlVzkxSUdadmNpQmhjMnRwYm1jdUxpND0iLCJjb250ZXh0Ijp7ImVtYWlsIjoidXNlckBleGFtcGxlLmNvbSIsImRpc3BsYXlOYW1lIjoiSm9obiBEb2UiLCJ3eG9fcm9sZSI6InVzZXIifSwiZXhwIjoxNzM1Njg5NjAwfQ.signature_here",
-      
-      // Chat options
-      chatOptions: {
-        // Agent configuration
-        agentId: "your-agent-id",
-        agentEnvironmentId: "draft",  // or 'live'
-        
-        // Event handlers
-        onLoad: function(instance) {
-          console.log("WXO chat loaded:", instance);
-          
-          // Store instance for later use
-          window.wxoChatInstance = instance;
-          
-          // Listen to events
-          instance.on("chatstarted", (data) => {
-            console.log("Chat started:", data);
-          });
-          
-          instance.on("pre:send", (event) => {
-            console.log("User sending message:", event.message);
-          });
-          
-          instance.on("receive", (event) => {
-            console.log("Received response:", event);
-          });
-        }
-      }
-    };
+    <!-- Chat widget container -->
+    <div id="root"></div>
 
-    // Load WXO chat script
-    setTimeout(function() {
-      const script = document.createElement('script');
-      script.src = `${window.wxOConfiguration.hostUrl}/wxochat/wxoLoader.js?embed=true`;
-      script.addEventListener('load', function() {
-        wxoLoader.init();
-      });
-      document.head.appendChild(script);
-    }, 0);
-  </script>
-</body>
+    <script>
+      // Configuration for WXO chat
+      window.wxOConfiguration = {
+        clientVersion: "latest",
+
+        // Your WXO orchestration ID
+        orchestrationID:
+          "bd8685e8de644893a69fd83941639e7c_c7526c9f-3f74-42d6-b062-ae756e31b956",
+
+        // WXO host URL
+        hostUrl: "https://orchestrate.ibm.com",
+
+        // Where to render the chat
+        rootElementId: "root",
+
+        // Layout: 'small' (widget) or 'full' (full page)
+        layout: "small",
+
+        // Show launcher button or render directly
+        showLauncher: false,
+
+        // THE JWT TOKEN - this is what ties everything together
+        // This token contains the encrypted sso_token that WXO will exchange
+        token:
+          "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwid29Vc2VySWQiOiJ1c2VyQGV4YW1wbGUuY29tIiwid29UZW5hbnRJZCI6ImJkODY4NWU4ZGU2NDQ4OTNhNjlmZDgzOTQxNjM5ZTdjX2M3NTI2YzlmLTNmNzQtNDJkNi1iMDYyLWFlNzU2ZTMxYjk1NiIsInVzZXJfcGF5bG9hZCI6ImFHVjVJRzE1SUdaeWFXVnVaQ0JvYjNjZ1lYSmxJSGx2ZFQ5SklHRnRJR1J2YVc1bklIZGxiR3dnZEdoaGJtc2dlVzkxSUdadmNpQmhjMnRwYm1jdUxpND0iLCJjb250ZXh0Ijp7ImVtYWlsIjoidXNlckBleGFtcGxlLmNvbSIsImRpc3BsYXlOYW1lIjoiSm9obiBEb2UiLCJ3eG9fcm9sZSI6InVzZXIifSwiZXhwIjoxNzM1Njg5NjAwfQ.signature_here",
+
+        // Chat options
+        chatOptions: {
+          // Agent configuration
+          agentId: "your-agent-id",
+          agentEnvironmentId: "draft", // or 'live'
+
+          // Event handlers
+          onLoad: function (instance) {
+            console.log("WXO chat loaded:", instance);
+
+            // Store instance for later use
+            window.wxoChatInstance = instance;
+
+            // Listen to events
+            instance.on("chatstarted", (data) => {
+              console.log("Chat started:", data);
+            });
+
+            instance.on("pre:send", (event) => {
+              console.log("User sending message:", event.message);
+            });
+
+            instance.on("receive", (event) => {
+              console.log("Received response:", event);
+            });
+          },
+        },
+      };
+
+      // Load WXO chat script
+      setTimeout(function () {
+        const script = document.createElement("script");
+        script.src = `${window.wxOConfiguration.hostUrl}/wxochat/wxoLoader.js?embed=true`;
+        script.addEventListener("load", function () {
+          wxoLoader.init();
+        });
+        document.head.appendChild(script);
+      }, 0);
+    </script>
+  </body>
 </html>
 ```
 
@@ -867,48 +880,47 @@ public class WxoJwtService {
   // Fetch JWT from your backend instead of hardcoding
   async function initChat() {
     // Call your backend endpoint that creates the JWT
-    const response = await fetch('/api/create-jwt', {
-      credentials: 'include'  // Include session cookies
+    const response = await fetch("/api/create-jwt", {
+      credentials: "include", // Include session cookies
     });
-    
+
     if (!response.ok) {
-      console.error('Failed to get JWT');
+      console.error("Failed to get JWT");
       return;
     }
-    
+
     const jwtToken = await response.text();
-    
+
     // Configure WXO with the token
     window.wxOConfiguration = {
       clientVersion: "latest",
-      orchestrationID: "bd8685e8de644893a69fd83941639e7c_c7526c9f-3f74-42d6-b062-ae756e31b956",
+      orchestrationID:
+        "bd8685e8de644893a69fd83941639e7c_c7526c9f-3f74-42d6-b062-ae756e31b956",
       hostUrl: "https://orchestrate.ibm.com",
       rootElementId: "root",
       layout: "small",
       showLauncher: false,
-      token: jwtToken,  // Dynamically fetched token
+      token: jwtToken, // Dynamically fetched token
       chatOptions: {
         agentId: "your-agent-id",
         agentEnvironmentId: "draft",
-        onLoad: function(instance) {
+        onLoad: function (instance) {
           console.log("Chat loaded");
-        }
-      }
+        },
+      },
     };
-    
+
     // Load WXO script
-    const script = document.createElement('script');
+    const script = document.createElement("script");
     script.src = `${window.wxOConfiguration.hostUrl}/wxochat/wxoLoader.js?embed=true`;
     script.onload = () => wxoLoader.init();
     document.head.appendChild(script);
   }
-  
+
   // Initialize when page loads
   initChat();
 </script>
 ```
-
-
 
 ## Complete Flow Diagram
 
@@ -927,7 +939,7 @@ public class WxoJwtService {
     Your backend exchanges code for access_token
          ↓
     SSO TOKEN: "eyJ0eXAiOiJKV1Qi..." ← STORE THIS
-    
+
 ┌─────────────────────────────────────────────────────────────────┐
 │ 2. Embedded Chat Initialization                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -957,7 +969,7 @@ public class WxoJwtService {
     WXO looks up connection config in database
          ↓
     WXO decrypts user_payload to get sso_token
-    
+
 ┌─────────────────────────────────────────────────────────────────┐
 │ 4. Token Exchange                                               │
 └─────────────────────────────────────────────────────────────────┘
@@ -1000,24 +1012,27 @@ public class WxoJwtService {
 **Cause:** `woTenantId` in JWT doesn't match database.
 
 **Fix:**
+
 ```bash
 # Check what's in the database
 orchestrate tools list
 
 # Ensure JWT uses the correct tenant ID
 "woTenantId": "c7526c9f-3f74-42d6-b062-ae756e31b956"
-#              
+#
 #              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ tenant ID
 ```
 
 ### "An unexpected error occurred during SSO token generation"
 
 **Causes:**
+
 1. **Wrong encryption** - Most common
 2. **Missing credentials** - Didn't run `set-credentials` commands
 3. **Invalid SSO token** - Token expired or malformed
 
 **Fix encryption:**
+
 ```python
 # Must use these exact parameters
 public_key.encrypt(
@@ -1031,6 +1046,7 @@ public_key.encrypt(
 ```
 
 **Verify credentials are set:**
+
 ```bash
 orchestrate connections describe --app-id epm-tool-oauth --env draft
 
@@ -1044,13 +1060,15 @@ orchestrate connections describe --app-id epm-tool-oauth --env draft
 **Cause:** SSO token expired before WXO could exchange it.
 
 **Fix:** Check token expiration times:
+
 ```javascript
 // When creating JWT, verify SSO token is still valid
 const tokenInfo = jwt.decode(ssoToken);
 const expiresAt = tokenInfo.exp;
 const now = Math.floor(Date.now() / 1000);
 
-if (expiresAt - now < 300) {  // Less than 5 minutes left
+if (expiresAt - now < 300) {
+  // Less than 5 minutes left
   // Refresh SSO token before creating WXO JWT
   ssoToken = await refreshSSOToken(refreshToken);
 }
@@ -1061,15 +1079,17 @@ if (expiresAt - now < 300) {  // Less than 5 minutes left
 **Cause:** Token cached in `runtime_credentials` table.
 
 **How it works:**
+
 - First request: WXO exchanges token, caches for 1 hour
 - Subsequent requests: Uses cached token
 - After expiration: Exchanges again
 
 **To test token exchange:**
+
 ```sql
 -- Clear cached tokens
 DELETE FROM runtime_credentials WHERE config_id IN (
-  SELECT config_id FROM application_connection_configs 
+  SELECT config_id FROM application_connection_configs
   WHERE app_id = 'epm-tool-oauth'
 );
 ```
@@ -1077,30 +1097,33 @@ DELETE FROM runtime_credentials WHERE config_id IN (
 ## Security Best Practices
 
 1. **Never log SSO tokens or JWTs in production**
+
    ```javascript
    // ❌ DON'T
-   console.log('SSO Token:', ssoToken);
-   
+   console.log("SSO Token:", ssoToken);
+
    // ✓ DO
-   console.log('SSO Token length:', ssoToken.length);
+   console.log("SSO Token length:", ssoToken.length);
    ```
 
 2. **Use short JWT expiration times**
+
    ```javascript
    // 1 hour maximum
    "exp": Math.floor(Date.now() / 1000) + 3600
    ```
 
 3. **Validate SSO tokens before creating JWT**
+
    ```javascript
    // Check token is still valid
    const introspection = await fetch(IDP_INTROSPECT_URL, {
-     method: 'POST',
-     body: `token=${ssoToken}`
+     method: "POST",
+     body: `token=${ssoToken}`,
    });
-   
+
    if (!introspection.active) {
-     throw new Error('SSO token expired');
+     throw new Error("SSO token expired");
    }
    ```
 
@@ -1132,18 +1155,18 @@ DELETE FROM runtime_credentials WHERE config_id IN (
 
 1. **sso_token** = OAuth2 access token from your SSO provider login
 2. **Two crypto operations:** JWT signature (RS256) + user_payload encryption (RSA-OAEP SHA-256)
-3. **woTenantId** must include the tenantId 
+3. **woTenantId** must include the tenantId
 4. **Echo server** validates SSO tokens and returns API access tokens
 5. **Credentials** must be set with `orchestrate connections set-credentials`
-
 
 # Data Warehouse Query Documentation
 
 This document outlines a set of SQL queries designed to extract specific business intelligence from the Procurement and Financial data warehouse. The queries are grouped by the type of information they retrieve, along with explanations of their logic and the data they surface.
 
 **Assumptions:**
-*   The `EPM.DIM_TIME_PERIOD_GREGORIAN` table is used as the central date dimension, with `SK_DAY` as the surrogate key and `DATE` as the actual date value.
-*   `YourPONumberHere`, `YourInvoiceNumberHere`, `YourSupplierNumberHere`, `YourMonthNumberHere`, `YourYearNumberHere`, and `YourDaysAgoHere` are placeholders for specific input values.
+
+- The `EPM.DIM_TIME_PERIOD_GREGORIAN` table is used as the central date dimension, with `SK_DAY` as the surrogate key and `DATE` as the actual date value.
+- `YourPONumberHere`, `YourInvoiceNumberHere`, `YourSupplierNumberHere`, `YourMonthNumberHere`, `YourYearNumberHere`, and `YourDaysAgoHere` are placeholders for specific input values.
 
 ---
 
@@ -1152,9 +1175,10 @@ This document outlines a set of SQL queries designed to extract specific busines
 ### Group 1: PO Header Details (Type, Status, Issue Date)
 
 **Questions:**
-*   What type of PO is this?
-*   What is the issue date for this PO?
-*   What is the status of this PO?
+
+- What type of PO is this?
+- What is the issue date for this PO?
+- What is the status of this PO?
 
 **SQL Query:**
 
@@ -1190,19 +1214,21 @@ GROUP BY
 
 **Description of Logic and Surfaced Data:**
 This query retrieves various header-level details for a specific Purchase Order.
-*   It joins `DIM_S2P_SUPPLIER_PURCHASE_ORDER` (for PO header attributes) with `EPM.DIM_TIME_PERIOD_GREGORIAN` to translate the `SK_PO_ISSUE_DATE` into a readable `POIssueDate`.
-*   It also joins through `FACT_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` to `DIM_S2P_ORDER_CLOSURE_STATUS` to gather all distinct item-level closure statuses associated with the PO, which are then aggregated into a single string.
-*   **Surfaced Data:** PO Number, flags indicating if it's a hands-free PO or a services order, blanket release number, the PO's issue date, its header-level release status, and a comma-separated list of all distinct closure statuses from its line items.
+
+- It joins `DIM_S2P_SUPPLIER_PURCHASE_ORDER` (for PO header attributes) with `EPM.DIM_TIME_PERIOD_GREGORIAN` to translate the `SK_PO_ISSUE_DATE` into a readable `POIssueDate`.
+- It also joins through `FACT_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` to `DIM_S2P_ORDER_CLOSURE_STATUS` to gather all distinct item-level closure statuses associated with the PO, which are then aggregated into a single string.
+- **Surfaced Data:** PO Number, flags indicating if it's a hands-free PO or a services order, blanket release number, the PO's issue date, its header-level release status, and a comma-separated list of all distinct closure statuses from its line items.
 
 ---
 
 ### Group 2: PO Item Details (Cost Center, Requester, Requisition Number, Number of Line Items)
 
 **Questions:**
-*   What is the cost center tied to this PO?
-*   Who has requested this PO?
-*   How many line items are there in this PO?
-*   What is the requisition number of this PO?
+
+- What is the cost center tied to this PO?
+- Who has requested this PO?
+- How many line items are there in this PO?
+- What is the requisition number of this PO?
 
 **SQL Query:**
 
@@ -1225,18 +1251,20 @@ GROUP BY
 
 **Description of Logic and Surfaced Data:**
 This query focuses on the details of individual line items within a specific Purchase Order.
-*   It queries `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` for line-item specific attributes.
-*   It joins with `EPM_PROCUREMENT.DIM_S2P_REQUESTER_ATTRIBUTE` to resolve the requester's name from the `SK_REQUESTER` foreign key.
-*   `COUNT(DISTINCT dpoi.SUPPLIER_PURCHASE_ORDER_ITEM_NUMBER)` calculates the total number of unique line items.
-*   `LISTAGG(DISTINCT ...)` is used to concatenate all unique cost centers, requesters, and requisition numbers found across all line items of the specified PO.
-*   **Surfaced Data:** PO Number, the total count of line items, a comma-separated list of distinct cost centers, requesters, and requisition numbers associated with the PO.
+
+- It queries `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` for line-item specific attributes.
+- It joins with `EPM_PROCUREMENT.DIM_S2P_REQUESTER_ATTRIBUTE` to resolve the requester's name from the `SK_REQUESTER` foreign key.
+- `COUNT(DISTINCT dpoi.SUPPLIER_PURCHASE_ORDER_ITEM_NUMBER)` calculates the total number of unique line items.
+- `LISTAGG(DISTINCT ...)` is used to concatenate all unique cost centers, requesters, and requisition numbers found across all line items of the specified PO.
+- **Surfaced Data:** PO Number, the total count of line items, a comma-separated list of distinct cost centers, requesters, and requisition numbers associated with the PO.
 
 ---
 
 ### Group 3: PO Summary Report
 
 **Question:**
-*   Provide the PO summary report for this PO
+
+- Provide the PO summary report for this PO
 
 **SQL Query:**
 
@@ -1293,16 +1321,18 @@ GROUP BY
 
 **Description of Logic and Surfaced Data:**
 This query provides a comprehensive summary report for a given Purchase Order by integrating data from multiple dimensions and fact tables.
-*   It joins `DIM_S2P_SUPPLIER_PURCHASE_ORDER` (PO header), `DIM_S2P_SUPPLIER` (supplier details), `FACT_S2P_SUPPLIER_PURCHASE_ORDER` (PO financial totals), `FACT_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` (PO line item details), `DIM_S2P_ORDER_CLOSURE_STATUS` (item closure status), `DIM_S2P_REQUESTER_ATTRIBUTE` (requester details), and `EPM.DIM_TIME_PERIOD_GREGORIAN` (for issue date).
-*   It aggregates line item quantities, counts distinct line items, and lists distinct commodity codes and requesters.
-*   **Surfaced Data:** PO Number, Supplier Name, Supplier DUNS, Purchasing Organization, Contract Number, Payment Terms, PO Issue Date, PO Release Status, aggregated item closure statuses, total ordered amounts in local and reporting currencies, total ordered quantity, number of line items, and lists of commodity codes and requesters.
+
+- It joins `DIM_S2P_SUPPLIER_PURCHASE_ORDER` (PO header), `DIM_S2P_SUPPLIER` (supplier details), `FACT_S2P_SUPPLIER_PURCHASE_ORDER` (PO financial totals), `FACT_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` (PO line item details), `DIM_S2P_ORDER_CLOSURE_STATUS` (item closure status), `DIM_S2P_REQUESTER_ATTRIBUTE` (requester details), and `EPM.DIM_TIME_PERIOD_GREGORIAN` (for issue date).
+- It aggregates line item quantities, counts distinct line items, and lists distinct commodity codes and requesters.
+- **Surfaced Data:** PO Number, Supplier Name, Supplier DUNS, Purchasing Organization, Contract Number, Payment Terms, PO Issue Date, PO Release Status, aggregated item closure statuses, total ordered amounts in local and reporting currencies, total ordered quantity, number of line items, and lists of commodity codes and requesters.
 
 ---
 
 ### Group 4: PO Payment Status
 
 **Question:**
-*   Is this PO fully paid?
+
+- Is this PO fully paid?
 
 **SQL Query:**
 
@@ -1325,16 +1355,18 @@ GROUP BY
 
 **Description of Logic and Surfaced Data:**
 This query determines if a specific Purchase Order has been fully paid by comparing the total ordered amount against the total invoiced amount across all its line items.
-*   It queries `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` which contains both the ordered and invoiced net amounts for each line item.
-*   It sums these amounts for the specified PO and uses a `CASE` statement to return 'Yes' if they match, indicating full payment, or 'No' otherwise.
-*   **Surfaced Data:** PO Number, total ordered amount, total invoiced amount, and a 'Yes'/'No' indicator for whether the PO is fully paid.
+
+- It queries `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` which contains both the ordered and invoiced net amounts for each line item.
+- It sums these amounts for the specified PO and uses a `CASE` statement to return 'Yes' if they match, indicating full payment, or 'No' otherwise.
+- **Surfaced Data:** PO Number, total ordered amount, total invoiced amount, and a 'Yes'/'No' indicator for whether the PO is fully paid.
 
 ---
 
 ### Group 5: PO to Invoice Linkage
 
 **Question:**
-*   What is the invoice number for this PO?
+
+- What is the invoice number for this PO?
 
 **SQL Query:**
 
@@ -1356,16 +1388,18 @@ GROUP BY
 
 **Description of Logic and Surfaced Data:**
 This query identifies all invoice numbers associated with a specific Purchase Order.
-*   It joins `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` with `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE_ITEM_LANDING` on both the PO number and item number to accurately link PO line items to invoice line items.
-*   `LISTAGG(DISTINCT ...)` collects all unique invoice document numbers linked to the PO.
-*   **Surfaced Data:** PO Number and a comma-separated list of all distinct invoice numbers associated with it.
+
+- It joins `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` with `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE_ITEM_LANDING` on both the PO number and item number to accurately link PO line items to invoice line items.
+- `LISTAGG(DISTINCT ...)` collects all unique invoice document numbers linked to the PO.
+- **Surfaced Data:** PO Number and a comma-separated list of all distinct invoice numbers associated with it.
 
 ---
 
 ### Group 6: PO Approval (Requisition-based)
 
 **Question:**
-*   Who approved this PO?
+
+- Who approved this PO?
 
 **SQL Query:**
 
@@ -1397,17 +1431,19 @@ GROUP BY
 
 **Description of Logic and Surfaced Data:**
 This query identifies the individuals who approved the requisition(s) that led to a specific Purchase Order.
-*   It traces the lineage from the PO header (`DIM_S2P_SUPPLIER_PURCHASE_ORDER`) to its line items (`DIM_S2P_SUPPLIER_PURCHASE_ORDER_ITEM`), then to the corresponding requisition items (`FACT_S2P_REQUISITION_ITEM`), and finally to the requisition approval records (`FACT_S2P_REQUISITION_APPROVAL`).
-*   The `SK_S2P_REQUISITION_APPROVER_ID` from the approval fact is used to join to `DIM_S2P_REQUESTER_ATTRIBUTE` to get the approver's name.
-*   A filter `fra.S2P_REQUISITION_APPROVAL_STATUS = 'Approved'` ensures only actual approvals are considered.
-*   **Surfaced Data:** PO Number and a comma-separated list of distinct requesters who approved the associated requisitions.
+
+- It traces the lineage from the PO header (`DIM_S2P_SUPPLIER_PURCHASE_ORDER`) to its line items (`DIM_S2P_SUPPLIER_PURCHASE_ORDER_ITEM`), then to the corresponding requisition items (`FACT_S2P_REQUISITION_ITEM`), and finally to the requisition approval records (`FACT_S2P_REQUISITION_APPROVAL`).
+- The `SK_S2P_REQUISITION_APPROVER_ID` from the approval fact is used to join to `DIM_S2P_REQUESTER_ATTRIBUTE` to get the approver's name.
+- A filter `fra.S2P_REQUISITION_APPROVAL_STATUS = 'Approved'` ensures only actual approvals are considered.
+- **Surfaced Data:** PO Number and a comma-separated list of distinct requesters who approved the associated requisitions.
 
 ---
 
 ### Group 7: Number of POs with Open Invoices
 
 **Question:**
-*   Can you display number of POs that have open invoices tied to it?
+
+- Can you display number of POs that have open invoices tied to it?
 
 **SQL Query:**
 
@@ -1437,12 +1473,13 @@ WHERE
 
 **Description of Logic and Surfaced Data:**
 This query counts the number of distinct Purchase Orders that are linked to at least one "open" invoice.
-*   It starts from `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` to get PO numbers.
-*   It joins to `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE_ITEM_LANDING` to link PO items to invoice items.
-*   It then joins to `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_INVOICE` (the invoice header dimension) to access critical status flags and the `SUPPLIER_INVOICE_CLEARING_DATE`.
-*   A `LEFT JOIN` to `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_INVOICE_STATUS` allows for filtering by descriptive status names.
-*   The `WHERE` clause applies multiple conditions to define an "open" invoice: it must not be cancelled, rejected, on hold, or blocked, and its `SUPPLIER_INVOICE_CLEARING_DATE` must be `NULL` (meaning not yet paid/cleared). It also explicitly excludes 'Paid', 'Cleared', or 'Cancelled' from the top-level status name.
-*   **Surfaced Data:** A single count representing the total number of distinct POs that have at least one open invoice.
+
+- It starts from `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` to get PO numbers.
+- It joins to `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE_ITEM_LANDING` to link PO items to invoice items.
+- It then joins to `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_INVOICE` (the invoice header dimension) to access critical status flags and the `SUPPLIER_INVOICE_CLEARING_DATE`.
+- A `LEFT JOIN` to `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_INVOICE_STATUS` allows for filtering by descriptive status names.
+- The `WHERE` clause applies multiple conditions to define an "open" invoice: it must not be cancelled, rejected, on hold, or blocked, and its `SUPPLIER_INVOICE_CLEARING_DATE` must be `NULL` (meaning not yet paid/cleared). It also explicitly excludes 'Paid', 'Cleared', or 'Cancelled' from the top-level status name.
+- **Surfaced Data:** A single count representing the total number of distinct POs that have at least one open invoice.
 
 ---
 
@@ -1451,8 +1488,9 @@ This query counts the number of distinct Purchase Orders that are linked to at l
 ### Group 1: Invoice Status and Amount
 
 **Questions:**
-*   What is the status of this invoice?
-*   How much is this invoice?
+
+- What is the status of this invoice?
+- How much is this invoice?
 
 **SQL Query:**
 
@@ -1488,16 +1526,18 @@ WHERE
 
 **Description of Logic and Surfaced Data:**
 This query retrieves the status and monetary amounts for a specific invoice.
-*   It joins `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_INVOICE` (for invoice header details and status flags) with `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE` (for the actual financial amounts) and `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_INVOICE_STATUS` (for descriptive status names).
-*   **Surfaced Data:** Invoice Number, various status codes and flags (e.g., `INVOICE_STATUS_CODE`, `IS_CANCELED`, `IS_REJECTED`), and net/gross amounts in local, document, reporting, and plan currencies.
+
+- It joins `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_INVOICE` (for invoice header details and status flags) with `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE` (for the actual financial amounts) and `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_INVOICE_STATUS` (for descriptive status names).
+- **Surfaced Data:** Invoice Number, various status codes and flags (e.g., `INVOICE_STATUS_CODE`, `IS_CANCELED`, `IS_REJECTED`), and net/gross amounts in local, document, reporting, and plan currencies.
 
 ---
 
 ### Group 2: Invoice Spend Categories and Attached PO
 
 **Questions:**
-*   What are the spend categories for this invoice?
-*   What is the PO attached to this invoice?
+
+- What are the spend categories for this invoice?
+- What is the PO attached to this invoice?
 
 **SQL Query:**
 
@@ -1523,17 +1563,19 @@ GROUP BY
 
 **Description of Logic and Surfaced Data:**
 This query identifies the spend categories (both internal commodity codes and external UNSPSC codes) and any associated Purchase Order numbers for a specific invoice.
-*   It queries `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE_ITEM_LANDING` (which contains invoice item details including links to commodity and UNSPSC codes, and PO numbers).
-*   It joins with `EPM_PROCUREMENT.DIM_S2P_COMMODITY_CODE` and `EPM_PROCUREMENT.DIM_S2P_UNSPSC_CODE` to get descriptive names for the spend categories. Note the join to `DIM_S2P_UNSPSC_CODE` is on the natural key `SUPPLIER_INVOICE_ITEM_UNSPSC_CODE`.
-*   `LISTAGG(DISTINCT ...)` aggregates the distinct categories and PO numbers.
-*   **Surfaced Data:** Invoice Number, a comma-separated list of commodity categories, UNSPSC categories, and attached PO numbers.
+
+- It queries `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE_ITEM_LANDING` (which contains invoice item details including links to commodity and UNSPSC codes, and PO numbers).
+- It joins with `EPM_PROCUREMENT.DIM_S2P_COMMODITY_CODE` and `EPM_PROCUREMENT.DIM_S2P_UNSPSC_CODE` to get descriptive names for the spend categories. Note the join to `DIM_S2P_UNSPSC_CODE` is on the natural key `SUPPLIER_INVOICE_ITEM_UNSPSC_CODE`.
+- `LISTAGG(DISTINCT ...)` aggregates the distinct categories and PO numbers.
+- **Surfaced Data:** Invoice Number, a comma-separated list of commodity categories, UNSPSC categories, and attached PO numbers.
 
 ---
 
 ### Group 3: Requester of a Specific PO
 
 **Question:**
-*   Who is requestor of PO CHN-PO-21-100022
+
+- Who is requestor of PO CHN-PO-21-100022
 
 **SQL Query:**
 
@@ -1553,18 +1595,20 @@ GROUP BY
 
 **Description of Logic and Surfaced Data:**
 This query identifies the requester(s) associated with a specific Purchase Order.
-*   It queries `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` for the PO number and the `SK_REQUESTER` foreign key.
-*   It joins with `EPM_PROCUREMENT.DIM_S2P_REQUESTER_ATTRIBUTE` to retrieve the `REQUESTER_NAME`.
-*   `LISTAGG(DISTINCT ...)` aggregates all unique requester names for the given PO.
-*   **Surfaced Data:** PO Number and a comma-separated list of distinct requesters.
+
+- It queries `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` for the PO number and the `SK_REQUESTER` foreign key.
+- It joins with `EPM_PROCUREMENT.DIM_S2P_REQUESTER_ATTRIBUTE` to retrieve the `REQUESTER_NAME`.
+- `LISTAGG(DISTINCT ...)` aggregates all unique requester names for the given PO.
+- **Surfaced Data:** PO Number and a comma-separated list of distinct requesters.
 
 ---
 
 ### Group 4: Invoices and Spend by Supplier for a Specific Month/Period
 
 **Questions:**
-*   Get invoices for supplier 729837166 for december month
-*   How much is spend by supplier 729837166 in last 15 days
+
+- Get invoices for supplier 729837166 for december month
+- How much is spend by supplier 729837166 in last 15 days
 
 **SQL Query:**
 
@@ -1598,16 +1642,18 @@ ORDER BY
 
 **Description of Logic and Surfaced Data:**
 This query retrieves a list of invoices and their amounts for a specific supplier, allowing for filtering by month/year or a rolling number of days.
-*   It joins `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_INVOICE` (invoice header) with `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE` (invoice amounts), `EPM_PROCUREMENT.DIM_S2P_SUPPLIER` (supplier details), and `EPM.DIM_TIME_PERIOD_GREGORIAN` (invoice date).
-*   The `WHERE` clause is designed to be dynamically filtered by `SUPPLIER_UNIQUE_NUMBER` and either a specific `MONTH_NUMBER` and `YEAR_NUMBER` (for a fixed month) or a `DATE` range using `CURRENT_DATE - YourDaysAgoHere DAYS` (for a rolling period).
-*   **Surfaced Data:** Supplier Number, Supplier Name, Invoice Date, Invoice Number, and net amounts in local and reporting currencies.
+
+- It joins `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_INVOICE` (invoice header) with `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE` (invoice amounts), `EPM_PROCUREMENT.DIM_S2P_SUPPLIER` (supplier details), and `EPM.DIM_TIME_PERIOD_GREGORIAN` (invoice date).
+- The `WHERE` clause is designed to be dynamically filtered by `SUPPLIER_UNIQUE_NUMBER` and either a specific `MONTH_NUMBER` and `YEAR_NUMBER` (for a fixed month) or a `DATE` range using `CURRENT_DATE - YourDaysAgoHere DAYS` (for a rolling period).
+- **Surfaced Data:** Supplier Number, Supplier Name, Invoice Date, Invoice Number, and net amounts in local and reporting currencies.
 
 ---
 
 ### Group 5: Spend by Category (Aggregated)
 
 **Question:**
-*   How much spend for each category
+
+- How much spend for each category
 
 **SQL Query:**
 
@@ -1633,17 +1679,19 @@ ORDER BY
 
 **Description of Logic and Surfaced Data:**
 This query calculates the total net spend (in reporting currency) for each distinct commodity and UNSPSC category across all invoice items.
-*   It queries `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE_ITEM_LANDING` for invoice item amounts and category keys.
-*   It joins with `EPM_PROCUREMENT.DIM_S2P_COMMODITY_CODE` and `EPM_PROCUREMENT.DIM_S2P_UNSPSC_CODE` to get descriptive names for the categories.
-*   `SUM(...)` aggregates the `SUPPLIER_INVOICE_ITEM_REPORTING_CURRENCY_NET_AMOUNT` for each unique combination of commodity and UNSPSC category.
-*   **Surfaced Data:** Commodity Category, UNSPSC Category, and the total net spend in reporting currency for that category combination.
+
+- It queries `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE_ITEM_LANDING` for invoice item amounts and category keys.
+- It joins with `EPM_PROCUREMENT.DIM_S2P_COMMODITY_CODE` and `EPM_PROCUREMENT.DIM_S2P_UNSPSC_CODE` to get descriptive names for the categories.
+- `SUM(...)` aggregates the `SUPPLIER_INVOICE_ITEM_REPORTING_CURRENCY_NET_AMOUNT` for each unique combination of commodity and UNSPSC category.
+- **Surfaced Data:** Commodity Category, UNSPSC Category, and the total net spend in reporting currency for that category combination.
 
 ---
 
 ### Group 6: Suppliers with Fully Invoiced POs for Last 2 Months
 
 **Question:**
-*   Get list of suppliers which has PO which is fully invoiced for last 2 months
+
+- Get list of suppliers which has PO which is fully invoiced for last 2 months
 
 **SQL Query:**
 
@@ -1673,18 +1721,20 @@ HAVING
 
 **Description of Logic and Surfaced Data:**
 This query identifies suppliers and their Purchase Orders that have been fully invoiced within the last two months.
-*   It queries `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` for PO item details, including ordered and invoiced amounts.
-*   It joins with `EPM_PROCUREMENT.DIM_S2P_SUPPLIER` to get supplier information and `EPM.DIM_TIME_PERIOD_GREGORIAN` to filter by the PO item creation date.
-*   The `WHERE` clause filters for PO items where the net ordered amount equals the net invoiced amount (indicating full invoicing) and where the PO item was created within the last two months.
-*   The `HAVING` clause ensures only POs with actual positive spend are included.
-*   **Surfaced Data:** Supplier Number, Supplier Name, and the PO Number for fully invoiced POs from the last two months.
+
+- It queries `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_PURCHASE_ORDER_ITEM` for PO item details, including ordered and invoiced amounts.
+- It joins with `EPM_PROCUREMENT.DIM_S2P_SUPPLIER` to get supplier information and `EPM.DIM_TIME_PERIOD_GREGORIAN` to filter by the PO item creation date.
+- The `WHERE` clause filters for PO items where the net ordered amount equals the net invoiced amount (indicating full invoicing) and where the PO item was created within the last two months.
+- The `HAVING` clause ensures only POs with actual positive spend are included.
+- **Surfaced Data:** Supplier Number, Supplier Name, and the PO Number for fully invoiced POs from the last two months.
 
 ---
 
 ### Group 7: Non-PO Invoices for a Specific Year
 
 **Question:**
-*   Get non po invoices for year 2025
+
+- Get non po invoices for year 2025
 
 **SQL Query:**
 
@@ -1712,10 +1762,55 @@ WHERE
 
 **Description of Logic and Surfaced Data:**
 This query retrieves a list of invoices that are not associated with a Purchase Order for a specific year.
-*   It joins `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_INVOICE` (invoice header) with `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE` (invoice amounts), `EPM_PROCUREMENT.DIM_S2P_SUPPLIER` (supplier details), and `EPM.DIM_TIME_PERIOD_GREGORIAN` (invoice date).
-*   The `WHERE` clause filters for invoices where `SUPPLIER_INVOICE_PURCHASE_ORDER_RELATED_FLAG` is 'N' (indicating a non-PO invoice) and the `YEAR_NUMBER` from the date dimension matches '2025'.
-*   **Surfaced Data:** Invoice Number, Invoice Date, Supplier Name, and the net amount in local currency for non-PO invoices in the specified year.
+
+- It joins `EPM_PROCUREMENT.DIM_S2P_SUPPLIER_INVOICE` (invoice header) with `EPM_PROCUREMENT.FACT_S2P_SUPPLIER_INVOICE` (invoice amounts), `EPM_PROCUREMENT.DIM_S2P_SUPPLIER` (supplier details), and `EPM.DIM_TIME_PERIOD_GREGORIAN` (invoice date).
+- The `WHERE` clause filters for invoices where `SUPPLIER_INVOICE_PURCHASE_ORDER_RELATED_FLAG` is 'N' (indicating a non-PO invoice) and the `YEAR_NUMBER` from the date dimension matches '2025'.
+- **Surfaced Data:** Invoice Number, Invoice Date, Supplier Name, and the net amount in local currency for non-PO invoices in the specified year.
 
 ---
 
+## Deploy App to OpenShift
 
+**1. Switch to namespace**
+
+```bash
+oc project software-hub
+```
+
+**2. Create secret from .env file**
+
+```bash
+oc create secret generic wxo-embedded-chat --from-env-file=.env
+```
+
+**3. Deploy the app**
+
+```bash
+oc new-app https://github.com/Patrick-Harned/wxo-api-template.git --name=wxo-embedded-chat
+```
+
+**4. Wait for build to complete**
+
+```bash
+oc logs -f bc/wxo-embedded-chat
+```
+
+**5. Attach secret to deployment**
+
+```bash
+oc set env --from=secret/wxo-embedded-chat deployment/wxo-embedded-chat
+```
+
+**6. Expose the service**
+
+```bash
+oc expose svc/wxo-embedded-chat --port=8080
+```
+
+**7. Get your URL**
+
+```bash
+oc get route wxo-embedded-chat
+```
+
+---

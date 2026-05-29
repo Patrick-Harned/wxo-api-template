@@ -23,9 +23,9 @@ lazy val server = project
   .in(file("."))
   .enablePlugins(SbtTwirl)
   .settings(
-    name                 := "epm-tool",
+    name                 := "wxo-embedded-chat",
     scalaVersion         := "3.7.1",
-    Compile / mainClass  := Some("org.ibm.EPMTool"),
+    Compile / mainClass  := Some("org.ibm.App"),
     assembly / mainClass := (Compile / mainClass).value,
     scalacOptions ++= Seq(
       "-Xlog-implicits", // see implicit resolution attempts
@@ -34,31 +34,31 @@ lazy val server = project
       "-Xmax-inlines:532"
     ),
     libraryDependencies ++= Seq(
-      "org.xerial"                     % "sqlite-jdbc"          % "3.46.1.0",
-      "org.bouncycastle"               % "bcprov-jdk18on"       % "1.77",
-      "com.github.jwt-scala"          %% "jwt-core"             % "9.4.5",
-      "com.softwaremill.sttp.client4" %% "core"                 % "4.0.13",
-      "org.jsoup"                      % "jsoup"                % "1.21.2",
-      "com.softwaremill.sttp.client4" %% "core"                 % "4.0.13",
-      "org.typelevel"                 %% "cats-effect"          % "3.7-4972921",
-      "org.http4s"                    %% "http4s-blaze-server"  % "0.23.17",
-      "org.http4s"                    %% "http4s-blaze-client"  % "0.23.17",
-      "org.http4s"                    %% "http4s-dsl"           % "0.23.33",
-      "org.http4s"                    %% "http4s-core"          % "0.23.33",
-      "com.softwaremill.sttp.tapir"   %% "tapir-jsoniter-scala" % tapirVersion,
-      "com.softwaremill.sttp.tapir"   %% "tapir-http4s-server"  % tapirVersion,
-      "com.softwaremill.sttp.tapir" %% "tapir-swagger-ui-bundle" % tapirVersion,
-      "com.softwaremill.sttp.tapir" %% "tapir-openapi-docs"      % tapirVersion,
-      "org.typelevel" %% "munit-cats-effect"   % "2.1.0"   % Test,
-      "org.http4s"    %% "http4s-client"       % "0.23.33" % Test,
-      "org.http4s"    %% "http4s-ember-client" % "0.23.33" % Test,
-      "com.ibm.db2"    % "jcc"                 % "12.1.2.0",
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.28.2",
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.28.2"
+      "org.xerial"                             % "sqlite-jdbc"             % "3.46.1.0",
+      "org.bouncycastle"                       % "bcprov-jdk18on"          % "1.77",
+      "com.github.jwt-scala"                  %% "jwt-core"                % "9.4.5",
+      "com.softwaremill.sttp.client4"         %% "core"                    % "4.0.13",
+      "org.jsoup"                              % "jsoup"                   % "1.21.2",
+      "com.softwaremill.sttp.client4"         %% "core"                    % "4.0.13",
+      "org.typelevel"                         %% "cats-effect"             % "3.7-4972921",
+      "org.http4s"                            %% "http4s-blaze-server"     % "0.23.17",
+      "org.http4s"                            %% "http4s-blaze-client"     % "0.23.17",
+      "org.http4s"                            %% "http4s-dsl"              % "0.23.33",
+      "org.http4s"                            %% "http4s-core"             % "0.23.33",
+      "com.softwaremill.sttp.tapir"           %% "tapir-jsoniter-scala"    % tapirVersion,
+      "com.softwaremill.sttp.tapir"           %% "tapir-http4s-server"     % tapirVersion,
+      "com.softwaremill.sttp.tapir"           %% "tapir-swagger-ui-bundle" % tapirVersion,
+      "com.softwaremill.sttp.tapir"           %% "tapir-openapi-docs"      % tapirVersion,
+      "org.typelevel"                         %% "munit-cats-effect"       % "2.1.0"   % Test,
+      "org.http4s"                            %% "http4s-client"           % "0.23.33" % Test,
+      "org.http4s"                            %% "http4s-ember-client"     % "0.23.33" % Test,
+      "com.ibm.db2"                            % "jcc"                     % "12.1.2.0",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"     % "2.28.2",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros"   % "2.28.2"
     ),
     testFrameworks += new TestFramework("munit.Framework"),
     dependencyOverrides += "org.scala-lang" %% "scala3-library" % "3.7.1",
-    Compile / unmanagedJars                 := {
+    Compile / unmanagedJars := {
       val repo = (ThisBuild / baseDirectory).value / "lib"
       val jars = (repo ** "*.jar").get
         .filterNot(_.getName.toLowerCase.startsWith("caseclassgenerator"))

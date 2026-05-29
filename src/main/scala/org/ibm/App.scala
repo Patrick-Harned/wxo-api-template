@@ -25,7 +25,7 @@ import sttp.tapir.server.interceptor.RequestInterceptor
 import sttp.tapir.server.ServerEndpoint
 import org.ibm.TelCodec.jsonBody
 
-object EPMTool extends IOApp {
+object App extends IOApp {
 
   val config: OIDCConfig = OIDCConfig.fromEnv
   val tokenService       = new TokenService(config)
