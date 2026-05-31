@@ -6,7 +6,7 @@ import java.io.FileInputStream
 import java.security.{KeyStore, Security}
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 import scala.util.{Try, Success, Failure}
-
+import org.ibm.config.TLSConfig
 object TLSSupport {
 
   def loadSSLContext(config: TLSConfig): SSLContext = {
@@ -14,11 +14,10 @@ object TLSSupport {
     val keyStore       = KeyStore.getInstance(config.keystoreType)
     val keystoreStream = new FileInputStream(config.keystorePath)
 
-    try {
+    try
       keyStore.load(keystoreStream, config.keystorePassword.toCharArray)
-    } finally {
+    finally
       keystoreStream.close()
-    }
 
     // Initialize key manager factory
     val keyManagerFactory = KeyManagerFactory.getInstance(
@@ -44,9 +43,7 @@ object TLSSupport {
   }
 
   // Helper to check if certificate exists
-  def certificateExists(path: String): Boolean = {
-    new java.io.File(path).exists()
-  }
+  def certificateExists(path: String): Boolean = new java.io.File(path).exists()
 
   // Helper to ensure certificate exists or generate it
 }
