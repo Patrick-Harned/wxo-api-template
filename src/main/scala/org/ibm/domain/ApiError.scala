@@ -1,4 +1,4 @@
-package org.ibm.models
+package org.ibm.domain
 import sttp.tapir.Schema
 case class ApiError(message: String)
 object ApiError {

@@ -2,7 +2,6 @@ package org.ibm
 import sttp.tapir._
 import cats.effect._
 import sttp.tapir.server.ServerEndpoint
-import org.ibm.TelCodec.jsonBody
 import sttp.tapir.server.http4s.Http4sServerInterpreter
 import sttp.tapir.server.http4s.Http4sServerOptions
 import sttp.tapir.server.interceptor.log.DefaultServerLog
@@ -12,12 +11,9 @@ val serverOptions = Http4sServerOptions
   .serverLog(
     DefaultServerLog[IO](
       doLogWhenReceived = msg => IO.println(s"[REQUEST] $msg"),
-      doLogWhenHandled =
-        (msg, error) => IO.println(s"[HANDLED] $msg, error: $error"),
-      doLogAllDecodeFailures =
-        (msg, error) => IO.println(s"[DECODE FAIL] $msg, error: $error"),
-      doLogExceptions =
-        (msg, ex) => IO.println(s"[EXCEPTION] $msg: ${ex.getMessage}"),
+      doLogWhenHandled = (msg, error) => IO.println(s"[HANDLED] $msg, error: $error"),
+      doLogAllDecodeFailures = (msg, error) => IO.println(s"[DECODE FAIL] $msg, error: $error"),
+      doLogExceptions = (msg, ex) => IO.println(s"[EXCEPTION] $msg: ${ex.getMessage}"),
       noLog = IO.unit
     )
   )

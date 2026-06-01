@@ -34,6 +34,7 @@ lazy val server = project
       "-Xmax-inlines:532"
     ),
     libraryDependencies ++= Seq(
+      "com.nimbusds"                           % "nimbus-jose-jwt"         % "9.37.3",
       "org.xerial"                             % "sqlite-jdbc"             % "3.46.1.0",
       "org.bouncycastle"                       % "bcprov-jdk18on"          % "1.77",
       "com.github.jwt-scala"                  %% "jwt-core"                % "9.4.5",
