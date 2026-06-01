@@ -7,22 +7,23 @@ import sttp.tapir.DecodeResult.Error.{JsonDecodeException, JsonError}
 import sttp.tapir.Schema.SName
 import sttp.tapir.generic.auto._
 import org.pwharned.json._
-object TelCodec {
-  def jsonBody[T: JsonDeserializer: JsonSerializer: Schema]
-      : EndpointIO.Body[String, T] = stringBodyUtf8AnyFormat(jsonCodec[T])
+object TapirJsonCodec {
+  def jsonBody[T: JsonDeserializer: JsonSerializer: Schema]: EndpointIO.Body[String, T] =
+    stringBodyUtf8AnyFormat(jsonCodec[T])
 
   def jsonBodyWithRaw[T: JsonSerializer: JsonDeserializer: Schema]
-      : EndpointIO.Body[String, (String, T)] = stringBodyUtf8AnyFormat(
-    implicitly[JsonCodec[(String, T)]]
-  )
+      : EndpointIO.Body[String, (String, T)] =
+    stringBodyUtf8AnyFormat(
+      implicitly[JsonCodec[(String, T)]]
+    )
 
   implicit def jsonCodec[T: Schema: JsonDeserializer](using
       deser: JsonDeserializer[T],
       ser: JsonSerializer[T]
-  ): JsonCodec[T] = {
+  ): JsonCodec[T] =
     sttp.tapir.Codec.json[T] { s =>
-      scala.util.Try { deser.decode(s.getBytes, 0) }.toEither match {
-        case Right(v)    => Value(v._1)
+      scala.util.Try(deser.decode(s.getBytes, 0)).toEither match {
+        case Right(v) => Value(v._1)
         case Left(error) =>
           Error(
             s,
@@ -36,7 +37,6 @@ object TelCodec {
           )
       }
 
-    } { t => ser.serialize(t) }
-  }
+    }(t => ser.serialize(t))
 
 }
