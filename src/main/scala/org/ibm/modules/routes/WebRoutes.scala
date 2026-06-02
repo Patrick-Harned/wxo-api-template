@@ -1,9 +1,10 @@
 package org.ibm.modules.routes
 
+import org.http4s.dsl.io.*
 import cats.effect.kernel.Async
 import org.http4s.HttpRoutes
-import org.http4s.*
-import org.http4s.dsl.io.*
+import org.http4s._
+import org.http4s.dsl.Http4sDsl
 import java.io.File
 import cats.data.OptionT
 import org.http4s.headers.`Content-Type`
@@ -21,22 +22,27 @@ object WebRoutes:
     AuthedRoutes {
       case req @ (GET -> Root) as user =>
         OptionT.liftF(
-          jwtService.createJwtToken(user).map { ssoToken =>
-            Response[F](Status.Ok)
-              .withEntity(
-                html
-                  .index(
-                    ssoToken.toString(),
-                    wxoConfig.orchestrationId,
-                    wxoConfig.hostUrl,
-                    wxoConfig.agentId,
-                    wxoConfig.agentEnvironmentId,
-                    user.userInfo.name.getOrElse(user.userInfo.sub),
-                    user.userInfo.sub
-                  )
-                  .body
-              )
-              .withContentType(`Content-Type`(MediaType.text.html))
+          jwtService.createJwtToken(user).map {
+            case Right(ssoToken) =>
+              Response[F](Status.Ok)
+                .withEntity(
+                  html
+                    .index(
+                      ssoToken.toString(),
+                      wxoConfig.orchestrationId,
+                      wxoConfig.hostUrl,
+                      wxoConfig.agentId,
+                      wxoConfig.agentEnvironmentId,
+                      user.userInfo.name.getOrElse(user.userInfo.sub),
+                      user.userInfo.sub
+                    )
+                    .body
+                )
+                .withContentType(`Content-Type`(MediaType.text.html))
+            case Left(errorMessage) =>
+              Response[F](Status.Ok)
+                .withEntity(serviceErrorPage(errorMessage))
+                .withContentType(`Content-Type`(MediaType.text.html))
           }
         )
       case req @ (GET -> _) as user
@@ -69,3 +75,58 @@ object WebRoutes:
             )
           )
     }
+  private def serviceErrorPage(errorMessage: String): String =
+    s"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Service Error</title>
+      <style>
+        body {
+          font-family: 'IBM Plex Sans', Arial, sans-serif;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          margin: 0;
+          background-color: #f4f4f4;
+        }
+        .error-card {
+          background: white;
+          padding: 2rem 3rem;
+          border-radius: 4px;
+          border-left: 4px solid #da1e28;
+          max-width: 480px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        h2 { color: #da1e28; margin-top: 0; }
+        p  { color: #525252; line-height: 1.5; }
+        a  {
+          display: inline-block;
+          margin-top: 1rem;
+          padding: 0.75rem 1.5rem;
+          background: #0f62fe;
+          color: white;
+          text-decoration: none;
+          border-radius: 4px;
+        }
+        a:hover { background: #0353e9; }
+      </style>
+    </head>
+    <body>
+      <div class="error-card">
+        <h2>Session Error</h2>
+        <p>${escapeHtml(errorMessage)}</p>
+        <a href="/logout">Sign out and try again</a>
+      </div>
+    </body>
+    </html>
+    """
+  private def escapeHtml(s: String): String =
+    s.replace("&", "&amp;")
+      .replace("<", "&lt;")
+      .replace(">", "&gt;")
+      .replace("\"", "&quot;")
+      .replace("'", "&#x27;")

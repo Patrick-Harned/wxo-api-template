@@ -24,32 +24,48 @@ object EntraTokenService:
     new TokenService[F] with Http4sClientDsl[F] with JsoniterInstances:
       // Validates the token locally using JWKS instead of introspection
       def validateToken(token: String): F[Option[AuthenticatedUser]] =
-        verifyJwt(token).map { x =>
-          // Build IntrospectionResponse from JWT claims
-          // so the rest of the app works identically
-          x.map { claims =>
-            val userInfo = UserInfo(
-              sub = claims.getSubject,
-              name = Option(claims.getStringClaim("name")),
-              email = Option(claims.getStringClaim("email"))
-                .orElse(Option(claims.getStringClaim("upn"))),
-              preferred_username = Option(claims.getStringClaim("preferred_username")),
-              groups = None
-            )
-            val introspection = IntrospectionResponse(
-              active = true,
-              scope = Option(claims.getStringClaim("scp"))
-                .orElse(Option(claims.getStringClaim("scope"))),
-              client_id = Option(claims.getStringClaim("appid"))
-                .orElse(Option(claims.getStringClaim("azp"))),
-              username = Option(claims.getStringClaim("preferred_username"))
-                .orElse(Option(claims.getStringClaim("upn"))),
-              exp = Option(claims.getExpirationTime)
-                .map(_.getTime / 1000)
-            )
-            AuthenticatedUser(userInfo, token, Some(introspection))
+        verifyJwt(token)
+          .map { x =>
+            x.map { claims =>
+              val userInfo = UserInfo(
+                sub = claims.getSubject,
+                name = Option(claims.getStringClaim("name")),
+                email = Option(claims.getStringClaim("email"))
+                  .orElse(Option(claims.getStringClaim("upn"))),
+                preferred_username = Option(claims.getStringClaim("preferred_username")),
+                groups = None
+              )
+              val introspection = IntrospectionResponse(
+                active = true,
+                scope = Option(claims.getStringClaim("scp"))
+                  .orElse(Option(claims.getStringClaim("scope"))),
+                client_id = Option(claims.getStringClaim("appid"))
+                  .orElse(Option(claims.getStringClaim("azp"))),
+                username = Option(claims.getStringClaim("preferred_username"))
+                  .orElse(Option(claims.getStringClaim("upn"))),
+                exp = Option(claims.getExpirationTime).map(_.getTime / 1000)
+              )
+              AuthenticatedUser(userInfo, token, Some(introspection))
+            }
           }
-        }
+          .map {
+            // If JWKS verification returned None (e.g. key not found),
+            // fall back to anonymous user but keep the original token
+            case None =>
+              println(
+                s"[EntraTokenService] Token validation returned no result, falling back to anonymous user"
+              )
+              Some(AuthenticatedUser(UserInfo.Anonymous, token, None))
+            case some => some
+          }
+          .handleErrorWith { err =>
+            // Any unexpected error during validation should not prevent page load
+            Async[F].delay(
+              println(
+                s"[EntraTokenService] validateToken failed, falling back to anonymous user: ${err.getMessage}"
+              )
+            ) *> Async[F].pure(Some(AuthenticatedUser(UserInfo.Anonymous, token, None)))
+          }
       // Local JWT signature verification using cached JWKS keys
       private def verifyJwt(
           token: String

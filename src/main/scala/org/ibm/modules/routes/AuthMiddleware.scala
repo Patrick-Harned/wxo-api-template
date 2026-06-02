@@ -45,12 +45,13 @@ object AuthenticationMiddleware:
               tokenService.validateToken(token).map {
                 case Some(user) => Right(user)
                 case None =>
-                  Right(AuthenticatedUser(UserInfo.Anonymous, "skip_auth", None))
+                  Right(AuthenticatedUser(UserInfo.Anonymous, token, None)) // keep original token
               }
             case None =>
               Async[F].pure(Left("No authentication token found"))
           }
         }
+
       private val onAuthFailure: AuthedRoutes[String, F] =
         Kleisli { req =>
           if (isApiRequest(req.req)) {
