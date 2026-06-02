@@ -9,6 +9,7 @@ import org.http4s.server.AuthMiddleware
 import org.ibm.config.OIDCConfig
 import org.ibm.domain.AuthenticatedUser
 import org.ibm.services.TokenService
+import org.ibm.domain.UserInfo
 trait AuthenticationMiddleware[F[_]]:
   def middleware(routes: AuthedRoutes[AuthenticatedUser, F]): HttpRoutes[F]
   def hasRole(user: AuthenticatedUser, role: String): Boolean
@@ -43,10 +44,11 @@ object AuthenticationMiddleware:
             case Some(token) =>
               tokenService.validateToken(token).map {
                 case Some(user) => Right(user)
-                case None       => Left("Unable to authenticate user")
+                case None =>
+                  Right(AuthenticatedUser(UserInfo.Anonymous, "skip_auth", None))
               }
             case None =>
-              Async[F].pure(Left("No authentication token found"))
+              Async[F].pure(Right(AuthenticatedUser(UserInfo.Anonymous, "skip_auth", None)))
           }
         }
       private val onAuthFailure: AuthedRoutes[String, F] =
