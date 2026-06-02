@@ -25,7 +25,7 @@ lazy val server = project
   .settings(
     name                 := "wxo-embedded-chat",
     scalaVersion         := "3.7.1",
-    Compile / mainClass  := Some("org.ibm.App"),
+    Compile / mainClass  := Some("org.ibm.Main"),
     assembly / mainClass := (Compile / mainClass).value,
     scalacOptions ++= Seq(
       "-Xlog-implicits", // see implicit resolution attempts
