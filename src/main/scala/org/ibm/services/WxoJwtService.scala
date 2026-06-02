@@ -40,35 +40,24 @@ object WxoJwtService:
         loadPrivateKey(config.privateKey, config.isKeyContent)
       private lazy val ibmPublicKey: PublicKey =
         loadPublicKey(config.ibmPublicKey, config.isKeyContent)
-
       def createJwtToken(a: AuthenticatedUser): F[JwtToken] =
-        ts
-          .validateToken(a.token)
-          .map(x =>
-            // Step 1: Create the payload that gets encrypted
-            val userPayload = UserPayload(
-              sso_token = a.token
-            )
-            val jsonString = writeToString(userPayload)
+        ts.validateToken(a.token)
+          .recover { case _ => None } // if validation fails, fall back to None
+          .map { validationResult =>
+            val userPayload = UserPayload(sso_token = a.token)
+            val jsonString  = writeToString(userPayload)
             val tokenHash = MessageDigest
               .getInstance("SHA-256")
               .digest(a.token.getBytes("UTF-8"))
               .take(16)
               .map("%02x".format(_))
               .mkString
-
-            // Combine real user ID + token hash
-            val cacheUserId = s"${a.userInfo.sub}_${tokenHash}"
-            val encryptedPayload =
-              EncryptionStrategy.fromEnv.encrypt(jsonString, ibmPublicKey)
-
-            // Step 2: Create the context
+            val cacheUserId      = s"${a.userInfo.sub}_${tokenHash}"
+            val encryptedPayload = EncryptionStrategy.fromEnv.encrypt(jsonString, ibmPublicKey)
             val context = JwtContext(
               wxo_name = a.userInfo.sub,
               displayName = a.userInfo.name.getOrElse(a.userInfo.sub)
             )
-
-            // Step 3: Build the complete JWT content - THIS IS WHAT GOES IN THE TOKEN
             val jwtContent = Map[String, Any](
               "sub"          -> cacheUserId,
               "woUserId"     -> cacheUserId,
@@ -82,27 +71,21 @@ object WxoJwtService:
                 "location"    -> context.location
               )
             )
-
-            // Step 4: Create and sign the JWT
-            val expiresAt =
-              Instant.now.getEpochSecond + config.tokenExpirationSeconds
+            val expiration = validationResult
+              .flatMap(_.introspectionResponse)
+              .flatMap(_.exp)
+              .getOrElse(
+                System.currentTimeMillis() / 1000 + sys.env
+                  .get("TOKEN_EXPIRY")
+                  .flatMap(_.toLongOption)
+                  .getOrElse(600L)
+              )
             val claim = JwtClaim(
               content = writeToString[Map[String, Any]](jwtContent),
-              expiration = x.map(x =>
-                x._3
-                  .flatMap(x => x.exp)
-                  .getOrElse(
-                    System
-                      .currentTimeMillis() + sys.env
-                      .get("TOKEN_EXPIRY")
-                      .map(_.toInt)
-                      .getOrElse(600)
-                  )
-              )
+              expiration = Some(expiration)
             )
-
             JwtToken.apply(Jwt.encode(claim, privateKey, JwtAlgorithm.RS256))
-          )
+          }
 
       private def loadPrivateKey(
           keySource: String,

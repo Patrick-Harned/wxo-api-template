@@ -48,7 +48,7 @@ object AuthenticationMiddleware:
                   Right(AuthenticatedUser(UserInfo.Anonymous, "skip_auth", None))
               }
             case None =>
-              Async[F].pure(Right(AuthenticatedUser(UserInfo.Anonymous, "skip_auth", None)))
+              Async[F].pure(Left("No authentication token found"))
           }
         }
       private val onAuthFailure: AuthedRoutes[String, F] =

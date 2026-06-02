@@ -61,7 +61,6 @@ object TokenService:
           Authorization(Credentials.Token(AuthScheme.Basic, encoded)),
           `Content-Type`(MediaType.application.`x-www-form-urlencoded`)
         )
-
         client.expectOr[IntrospectionResponse](request) { response =>
           response.bodyText.compile.string.flatMap { body =>
             throw new RuntimeException(

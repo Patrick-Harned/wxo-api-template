@@ -4,39 +4,33 @@ import cats.implicits.*
 import org.http4s.*
 import org.http4s.server.middleware.{Logger, CORS}
 import org.http4s.blaze.client.BlazeClientBuilder
-import sttp.tapir.server.http4s.Http4sServerInterpreter
 import scala.concurrent.duration.*
 import org.ibm.config.{OIDCConfig, TLSConfig}
 import org.ibm.modules.routes._
 import org.ibm.services._
 import org.ibm.config.AppConfig
+import org.ibm.config.WXOConfig
 object Main extends IOApp {
   def run(args: List[String]): IO[ExitCode] = {
     val appConfig  = AppConfig.fromEnv
     val oidcConfig = appConfig.oidcConfig
     val jwtConfig  = appConfig.jwtConfig
     val tlsConfig  = appConfig.tlsConfig
+    val wxoConfig  = WXOConfig.fromEnv
     val port       = sys.env.getOrElse("SERVER_PORT", "8080").toInt
     val program: Resource[IO, Unit] = for {
-      // Infrastructure
-      client <- BlazeClientBuilder[IO].resource
-      // Services
-
+      client       <- BlazeClientBuilder[IO].resource
       tokenService <- TokenServiceFactory.make[IO](client, oidcConfig).toResource
-      jwtService = WxoJwtService.live[IO](jwtConfig, tokenService)
-      // Public routes
+      jwtService   = WxoJwtService.live[IO](jwtConfig, tokenService)
       publicRoutes = PublicRoutes.routes[IO]
       authRoutes   = AuthRoutes.live[IO](tokenService, oidcConfig).routes
       echoRoutes   = EchoRoutes.live[IO](tokenService, oidcConfig).routes
-      // Protected routes
-      webRoutes = WebRoutes.routes[IO]
-
-      protectedRoutes = AuthenticationMiddleware.live(tokenService, oidcConfig).middleware {
-        AuthedRoutes { case req =>
-          webRoutes.run(req.req)
-        }
-      }
-      // Combine
+      // WebRoutes is now AuthedRoutes so it receives the authenticated user directly
+      protectedRoutes = AuthenticationMiddleware
+        .live(tokenService, oidcConfig)
+        .middleware(
+          WebRoutes.routes[IO](jwtService, wxoConfig)
+        )
       allRoutes = publicRoutes <+> authRoutes <+> echoRoutes <+> protectedRoutes
       corsRoutes = CORS.policy
         .withAllowOriginHostCi(_ => true)
@@ -45,10 +39,9 @@ object Main extends IOApp {
         .withAllowHeadersAll
         .apply(allRoutes)
       httpApp = Logger.httpApp(
-        logHeaders = sys.env.get("DEV").isDefined,
-        logBody = sys.env.get("DEV").isDefined
+        logHeaders = sys.env.get("DEV").isDefined | true,
+        logBody = sys.env.get("DEV").isDefined | true
       )(corsRoutes.orNotFound)
-      // Start server
       _ <- Server.start[IO](httpApp, tlsConfig, port)
     } yield ()
     for {
